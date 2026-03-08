@@ -354,7 +354,74 @@ a credible migration path that allows incremental adoption.
 > successful proposal must address all three.*
 
 
-## 3. The Competitive Landscape
+---
+
+## 3. Why This Hasn't Been Done Before
+
+The core technical proposition of the DMCN — cryptographic identity at the protocol level, peer-to-peer routing, spam rejection at the network boundary rather than the inbox — has been understood as the correct class of solution since at least the early 1990s. Phil Zimmermann understood it in 1991. The question a technically sophisticated reader will immediately ask is: if this is the right answer, why hasn't it been built?
+
+The honest response is not that nobody thought of it. It is that five compounding obstacles have, until recently, made a successful execution implausible. Understanding those obstacles is important context for evaluating this proposal — and for understanding why the conditions have changed enough to make a serious attempt viable now.
+
+### 3.1 The Network Effect Is Brutal
+
+Email's value derives almost entirely from the fact that everyone is already on it. A replacement network starts at zero users, which means zero value, which means no rational user switches, which means it stays at zero users. This is not a technical problem — it is a cold-start problem of the kind that has ended every serious attempt at email replacement.
+
+The only communication platforms that have broken through this barrier in recent years — Signal, WhatsApp, Telegram — did so by targeting a different use case (mobile messaging) rather than attempting a direct email replacement, and by benefiting from specific external catalysts: the Snowden revelations, Facebook's acquisition of WhatsApp, and government attempts to ban encrypted messaging. No equivalent catalyst has yet destabilised email incumbency at scale.
+
+Any credible proposal for an email replacement must have a specific, credible answer to the cold-start problem. The DMCN's answer — the SMTP bridge architecture and address portability — is the design element that makes or breaks the proposal's real-world viability. The technical architecture is the easier part.
+
+### 3.2 PGP Poisoned the Well
+
+PGP did the cryptographically correct thing and failed so visibly, for so long, that it created a durable belief in the technical community that secure email is a structural impossibility. That belief suppressed serious engineering investment and venture capital attention for three decades.
+
+The diagnosis was wrong. PGP failed on user experience and key discovery — not on cryptography. The underlying model was sound. But "if PGP couldn't do it, nothing can" became a default assumption that was rarely examined. The result is that the problem space has been underfunded and understaffed relative to its importance, and most serious cryptographic engineering talent has been directed toward problems perceived as more tractable.
+
+### 3.3 Incumbent Platforms Have No Incentive to Fix It
+
+Google and Microsoft collectively handle the majority of global email. Their business models are built on the email ecosystem as it currently exists. Gmail's advertising revenue depends on the ability to analyse message content. A cryptographically private email system with end-to-end encryption would directly undermine that model.
+
+Both companies have invested substantially in spam filtering — which keeps users satisfied enough to prevent churn — but have no commercial incentive to solve the identity problem at the protocol level. Solving it would also solve their surveillance capability. The result is a rational corporate decision to treat spam as a manageable nuisance rather than a solvable structural problem, and to direct engineering resources accordingly.
+
+This dynamic means that a solution to the email identity problem is unlikely to come from the incumbent platforms. It must come from outside.
+
+### 3.4 The Transition Cost Is Asymmetric
+
+Every prior attempt at secure or decentralised email forced users to make a binary choice: adopt the new system and abandon your existing address, or stay on SMTP. For most users and organisations, abandoning an established email address is not a realistic option — it is embedded in contracts, business cards, institutional systems, and years of correspondence. The switching cost is effectively prohibitive.
+
+This asymmetry has killed technically sound proposals repeatedly. A system can be cryptographically superior in every measurable way and still achieve zero adoption if the migration path requires users to start over. The DMCN's address portability and bridge architecture are specifically designed to eliminate this barrier — but it is worth being clear that this design challenge is harder than the cryptographic design challenge, and that no previous attempt has solved it convincingly.
+
+### 3.5 The UX Precondition Was Not Yet Met
+
+The DMCN's central UX claim — that public/private key cryptography can be made entirely invisible to mainstream users — has only become demonstrably true in the last two to three years. The mass deployment of passkeys by Apple, Google, and Microsoft from 2022 onwards established, at a scale of hundreds of millions of users, that people can use elliptic curve cryptography daily without any awareness that they are doing so.
+
+Before that precedent existed, the honest answer to "can you hide cryptographic key management from non-technical users at scale" was "we believe so, but we have not proven it." That uncertainty was a legitimate objection to the entire approach. It is no longer a legitimate objection. The passkey deployment provides a real-world existence proof at the exact scale the DMCN requires.
+
+This is the most important change in the conditions since PGP's failure, and it is recent. It is the primary reason why the timing of this proposal differs from prior attempts.
+
+### 3.6 Blockchain Absorbed the Decentralisation Impulse
+
+From approximately 2017 onwards, the engineering energy and venture capital that might otherwise have been directed at decentralised communication infrastructure was largely absorbed by the blockchain and Web3 ecosystem. Projects that correctly identified the decentralised identity problem attempted to solve it using blockchain infrastructure — which introduced transaction latency, economic friction, and a requirement for cryptocurrency wallet ownership that made mainstream adoption structurally impossible.
+
+The result was a decade in which the correct problem was identified by a large number of well-funded teams, and the wrong architectural choice was consistently made. The DMCN's explicit design decision to achieve decentralisation through peer-to-peer networking rather than blockchain infrastructure is a direct response to this pattern.
+
+### 3.7 The Conditions Have Changed
+
+The five obstacles above have not disappeared. The network effect problem remains the hardest unsolved challenge, and this proposal does not claim to have a guaranteed solution to it. What has changed is:
+
+- The UX precondition is now met, demonstrably, at scale
+- The cryptographic primitives required (Curve25519, Ed25519, AES-256-GCM) are mature, hardware-accelerated, and universally available
+- The blockchain detour has produced useful lessons about what decentralised identity infrastructure should not be
+- Regulatory pressure on email security and data privacy (GDPR, NIS2, increasing BEC enforcement) is creating institutional demand for a more trustworthy email substrate
+- The distributed systems infrastructure required to run a global peer-to-peer network — cloud compute, global CDN, open-source DHT implementations — is commoditised in a way it was not in 2005 or even 2015
+
+This is not an argument that the DMCN will succeed where others have failed. It is an argument that the conditions under which a well-designed attempt could succeed are better now than they have been at any prior point. The proposal stands or falls on the quality of its execution — particularly the migration strategy — not on the novelty of its core insight.
+
+> **Historical Assessment**
+> *The right technical answer to the email identity problem has been known for thirty years. The barriers to implementation have been predominantly economic, social, and experiential rather than cryptographic. The conditions that sustained those barriers are weaker now than at any previous point. That is the case for attempting this now, stated plainly.*
+
+
+
+## 4. The Competitive Landscape
 
 
 ### 3.1 Dmail Network
@@ -426,7 +493,7 @@ and UX precedents that a DMCN design should draw upon.
   ---------------- ------------------- ------------- ------------ -------------- --------------
 
 
-## 4. Proposed Architecture: Decentralized Mesh Communication Network
+## 5. Proposed Architecture: Decentralized Mesh Communication Network
 
 
 ### 4.1 Design Principles
@@ -518,7 +585,7 @@ A message in the DMCN follows this lifecycle:
 - The recipient's client verifies the sender's signature, confirming the message genuinely originated from the stated sender.
 
 
-## 5. Cryptographic Identity and Key Management
+## 6. Cryptographic Identity and Key Management
 
 
 ### 5.1 Key Generation and Storage
@@ -596,7 +663,7 @@ QR code exchange in the mobile app.
 > established in the physical world.*
 
 
-## 6. Spam Elimination at the Protocol Level
+## 7. Spam Elimination at the Protocol Level
 
 
 ### 6.1 Why Cryptographic Identity Eliminates Spam
@@ -652,7 +719,7 @@ legitimate outreach — but makes mass spam campaigns economically
 prohibitive.
 
 
-## 7. User Experience: Hiding Complexity Without Sacrificing Security
+## 8. User Experience: Hiding Complexity Without Sacrificing Security
 
 
 ### 7.1 The Fundamental Principle
@@ -711,7 +778,7 @@ pending section. A simple trust indicator shows whether a contact's
 identity has been verified by mutual connections in the user's network.
 
 
-## 8. Transition Strategy: Coexistence with Legacy Email
+## 9. Transition Strategy: Coexistence with Legacy Email
 
 
 ### 8.1 The Migration Problem
@@ -768,7 +835,7 @@ correspondence; and developer APIs allowing third-party applications to
 integrate DMCN identity as a communication primitive.
 
 
-## 9. The SMTP-DMCN Bridge Architecture
+## 10. The SMTP-DMCN Bridge Architecture
 
 
 A Decentralized Mesh Communication Network that cannot communicate with
@@ -961,7 +1028,7 @@ translation at scale is an engineering challenge with proven solutions:
 > deliverable for an initial proof-of-concept phase.*
 
 
-## 10. Bringing Existing Email Addresses to the DMCN
+## 11. Bringing Existing Email Addresses to the DMCN
 
 
 One of the most significant friction points in any transition away from
@@ -1144,7 +1211,7 @@ precedents in both identity verification and email infrastructure:
 - Number portability in mobile telephony — the telecommunications industry solved an analogous problem when it allowed consumers to bring their phone numbers between carriers. The lesson from that transition is directly applicable: portability dramatically lowers switching costs and accelerates adoption of superior infrastructure.
 
 
-## 11. Trust Management: Whitelists, Greylists, and Blacklists
+## 12. Trust Management: Whitelists, Greylists, and Blacklists
 
 
 Cryptographic identity verification is the foundation of the DMCN's
@@ -1441,7 +1508,7 @@ from profitable to unprofitable.
 
 ---
 
-## 12. Threat Model
+## 13. Threat Model
 
 
 This section provides a structured analysis of the threat landscape
@@ -1522,8 +1589,8 @@ The DMCN does not make spam creation infinitely expensive — it makes
 it non-zero in cost and permanently cumulative in consequence. A
 determined, well-resourced spam operation could potentially automate the
 account creation process (a Sybil attack), creating large numbers of
-identities before they are reported. Section 12.5 addresses Sybil
-resistance specifically. The consent-based inbox model (Section 6.2) provides a secondary layer: even a registered
+identities before they are reported. Section 13.5 addresses Sybil
+resistance specifically. The consent-based inbox model (Section 7.2) provides a secondary layer: even a registered
 identity cannot reach a user's primary inbox without meeting one of the
 whitelisting criteria.
 
@@ -1600,14 +1667,14 @@ attacker to send messages that are indistinguishable from legitimate
 messages from that sender. In the DMCN, a compromised account requires
 the attacker to have stolen the private key itself, not merely the login
 credentials. Private keys stored in hardware-backed secure enclaves (as
-specified in Section 5.1) cannot be extracted even if the device's
+specified in Section 6.1) cannot be extracted even if the device's
 operating system is compromised.
 
 This represents a meaningful improvement over SMTP account compromise,
 but it introduces a new concern: if a private key is stolen (e.g., from
 a device without hardware security support), the attacker gains the full
 trust relationships of that identity with no visible indicator to
-contacts. The whitelist key-change notification system (Section 11.1.2)
+contacts. The whitelist key-change notification system (Section 12.1.2)
 partially mitigates this: if the attacker uses a new device, contacts
 will be alerted that the key has changed and prompted to re-verify.
 
@@ -1666,7 +1733,7 @@ identity being spoofed.
 Bridge nodes represent a concentration of trust and traffic that may be
 attractive targets. A successful attack on a widely-used bridge node
 disrupts both inbound and outbound legacy email communication for its
-users. The federated bridge architecture (Section 9.5) distributes this
+users. The federated bridge architecture (Section 10.5) distributes this
 risk, but organisations using a single bridge provider remain exposed to
 single-point-of-failure risk.
 
@@ -1716,7 +1783,7 @@ infrastructure.
 #### 12.4.3 Metadata Privacy and the Onion Routing Layer
 
 
-The proposed onion-routing-inspired transport protocol (Section 4.2.2)
+The proposed onion-routing-inspired transport protocol (Section 5.2.2)
 is specifically designed to limit the metadata visibility of individual
 relay nodes. In an onion routing scheme, each relay node knows only the
 previous hop and the next hop — it does not know both the originating
@@ -1914,7 +1981,7 @@ provider who can reset an account.
 #### 12.7.3 The Social Recovery Attack Surface
 
 
-The social recovery mechanism (Section 5.3) — in which trusted
+The social recovery mechanism (Section 6.3) — in which trusted
 contacts hold encrypted shards of a recovery key — introduces a new
 attack surface. An attacker who wishes to compromise an account could
 target the recovery contacts rather than the primary user, attempting to
@@ -1959,7 +2026,7 @@ conversation.
 #### 12.8.1 Nature of the Threat
 
 
-The SMTP-DMCN bridge architecture (Section 9) is a necessary component
+The SMTP-DMCN bridge architecture (Section 10) is a necessary component
 of any viable transition strategy, but it reintroduces several trust and
 security challenges that the native DMCN architecture otherwise
 eliminates. Bridge nodes represent the interface between the trustless
@@ -1974,7 +2041,7 @@ in the native protocol.
 The following attacks are specific to the bridge architecture and have
 no equivalent in the native DMCN:
 
-- Content interception on the outbound path: bridge nodes must decrypt outbound messages to re-encode them as SMTP. A malicious or compromised bridge operator gains access to message content in transit. This is disclosed in Section 9.2.2 and is an unavoidable consequence of protocol translation.
+- Content interception on the outbound path: bridge nodes must decrypt outbound messages to re-encode them as SMTP. A malicious or compromised bridge operator gains access to message content in transit. This is disclosed in Section 10.2.2 and is an unavoidable consequence of protocol translation.
 
 - False trust classification: a malicious bridge could misrepresent the trust tier of an inbound SMTP message — for example, classifying a spam message as 'Verified Legacy Sender' to bypass the recipient's filters. The bridge's classification is signed with the bridge's own DMCN key, creating accountability, but this only helps if users verify which bridge they are trusting.
 
@@ -2070,7 +2137,7 @@ SMTP, the treatment under DMCN, and the net outcome for each:
 
 ---
 
-## 13. Open Challenges and Research Questions
+## 14. Open Challenges and Research Questions
 
 
 This whitepaper represents a preliminary investigation into the design
@@ -2093,7 +2160,7 @@ deployment.
 ### 13.2 Key Recovery Without Central Authority
 
 
-The social recovery model proposed in Section 5 is promising, but its UX
+The social recovery model proposed in Section 6 is promising, but its UX
 and security properties require careful design and user research. The
 threshold for recovery must balance security against the practical
 reality that trusted contacts may be unavailable, may themselves lose
@@ -2136,7 +2203,7 @@ uneconomical, without imposing unacceptable burden on legitimate users.
 
 ---
 
-## 14. Conclusion
+## 15. Conclusion
 
 
 Email is the foundational communication layer of the digital world, and
@@ -2173,8 +2240,8 @@ problem.
 
 The DMCN is not proposed as a finished design — it is proposed as a
 research agenda and a design direction. The open challenges documented
-in Section 13 are real and significant. The competitive landscape
-documented in Section 3 demonstrates that the market is beginning to
+in Section 14 are real and significant. The competitive landscape
+documented in Section 4 demonstrates that the market is beginning to
 recognize the problem space, even if existing solutions have not yet
 solved it effectively.
 
@@ -2579,14 +2646,14 @@ https://cabforum.org/baseline-requirements-documents/
 
 ---
 
-## 15. Privacy Analysis
+## 16. Privacy Analysis
 
-This section addresses a question distinct from the threat model in Section 12: not whether the DMCN can be attacked, but what the system *inherently reveals* during normal, correct operation. A communication network can be cryptographically secure against active attackers while still exposing significant information about its users through the ordinary mechanics of message routing, identity discovery, and protocol operation.
+This section addresses a question distinct from the threat model in Section 13: not whether the DMCN can be attacked, but what the system *inherently reveals* during normal, correct operation. A communication network can be cryptographically secure against active attackers while still exposing significant information about its users through the ordinary mechanics of message routing, identity discovery, and protocol operation.
 
 The privacy analysis is structured around four areas: metadata exposure at the network layer, the identity registry as a surveillance surface, bridge node privacy, and regulatory compliance in a decentralised architecture. Each area is assessed against a baseline of what the current SMTP email ecosystem reveals, so that the comparison is grounded rather than abstract.
 
 > **Scope**
-> *This analysis addresses privacy in the technical sense — what information is exposed to which parties as a structural consequence of the protocol — rather than the policy sense of what operators choose to do with data. Operator conduct is a governance and regulatory matter addressed in Section 13.3 and Section 15.4.*
+> *This analysis addresses privacy in the technical sense — what information is exposed to which parties as a structural consequence of the protocol — rather than the policy sense of what operators choose to do with data. Operator conduct is a governance and regulatory matter addressed in Section 14.3 and Section 16.4.*
 
 ---
 
@@ -2670,11 +2737,11 @@ When Alice's client performs a registry lookup for Bob's public key, that lookup
 
 ### 15.4 Bridge Node Privacy
 
-The SMTP-DMCN bridge architecture, addressed in Section 9 from a security perspective, has distinct privacy implications that require separate treatment.
+The SMTP-DMCN bridge architecture, addressed in Section 10 from a security perspective, has distinct privacy implications that require separate treatment.
 
 #### 15.4.1 Outbound Path: What the Bridge Operator Sees
 
-When a DMCN user sends a message to a legacy email address, the message must be decrypted at the bridge node to be re-encoded as SMTP. This is an unavoidable consequence of protocol translation, disclosed in Section 9.2.2. The privacy implication is explicit: the bridge operator has technical access to:
+When a DMCN user sends a message to a legacy email address, the message must be decrypted at the bridge node to be re-encoded as SMTP. This is an unavoidable consequence of protocol translation, disclosed in Section 10.2.2. The privacy implication is explicit: the bridge operator has technical access to:
 
 - The full content of every outbound message sent to legacy email recipients
 - The sender's DMCN identity
@@ -2685,11 +2752,11 @@ This is structurally equivalent to the trust placed in a conventional email serv
 
 **Disclosure requirement:** The DMCN client must present a clear, non-technical disclosure at the point where a user first sends a message to a legacy email recipient, explaining that the bridge operator can read the content of messages sent to non-DMCN addresses. This disclosure should be persistent — not a one-time consent flow that users will click through without reading — and the privacy policy of the chosen bridge operator should be linked and surfaced in the client UI.
 
-**Mitigation through operator choice:** Because the bridge architecture is federated (Section 9.5), users can choose bridge operators with strong privacy commitments, including operators that commit to zero message logging and are subject to independent audit. Organisations with strong confidentiality requirements can operate their own bridge nodes, eliminating third-party access entirely.
+**Mitigation through operator choice:** Because the bridge architecture is federated (Section 10.5), users can choose bridge operators with strong privacy commitments, including operators that commit to zero message logging and are subject to independent audit. Organisations with strong confidentiality requirements can operate their own bridge nodes, eliminating third-party access entirely.
 
 #### 15.4.2 Inbound Path: Legacy Sender Metadata
 
-When a legacy email sender sends a message to a DMCN user's bridge address, the bridge operator observes the full SMTP headers of the inbound message: sender address, sending server IP, timestamps, and routing path. This metadata is used to perform the authentication classification described in Section 9.3.2 and is necessarily retained for that purpose.
+When a legacy email sender sends a message to a DMCN user's bridge address, the bridge operator observes the full SMTP headers of the inbound message: sender address, sending server IP, timestamps, and routing path. This metadata is used to perform the authentication classification described in Section 10.3.2 and is necessarily retained for that purpose.
 
 The DMCN specification should define minimum and maximum retention periods for bridge-held metadata, consistent with applicable data protection law, and should require bridge operators to publish their metadata retention policies.
 
@@ -2713,10 +2780,10 @@ In the DMCN's native peer-to-peer layer, there is no central operator. Messages 
 
 - For the core protocol layer, the user themselves may be considered the data controller for their own encrypted data, since only they hold the decryption key. This is analogous to the position taken by some self-hosted encrypted services.
 - For relay nodes storing encrypted messages, the relay node operator may be considered a data processor acting on behalf of the user-controller, with a data processing agreement required.
-- For bridge nodes, as discussed in Section 15.4.3, the operator is a data controller in their own right for the content they can access.
+- For bridge nodes, as discussed in Section 16.4.3, the operator is a data controller in their own right for the content they can access.
 - For the identity registry, the distributed architecture means there is no single controller; each node operator is a processor of the subset of registry data they hold.
 
-These positions are not fully settled in law and will require engagement with data protection authorities in relevant jurisdictions as the DMCN matures. The governance framework (Section 13.4) should include a dedicated working group on regulatory compliance.
+These positions are not fully settled in law and will require engagement with data protection authorities in relevant jurisdictions as the DMCN matures. The governance framework (Section 14.4) should include a dedicated working group on regulatory compliance.
 
 #### 15.5.2 The Right to Erasure
 
@@ -2775,7 +2842,7 @@ The privacy analysis above yields the following concrete design recommendations 
 
 ---
 
-## 16. Protocol Specification Outline
+## 17. Protocol Specification Outline
 
 This section provides a structured technical outline of the DMCN protocol. It is not a complete specification — a production-ready protocol specification would be published as a series of formal documents analogous to IETF RFCs — but it defines the principal data structures, message formats, and protocol flows with sufficient precision to guide prototype implementation and to invite technical critique.
 
@@ -2794,7 +2861,7 @@ All binary fields (keys, signatures, hashes, nonces) are encoded as raw bytes in
 
 All timestamps are Unix epoch seconds as a 64-bit unsigned integer.
 
-String fields use UTF-8 encoding. Address strings follow the `local@domain` format defined in Section 16.2.
+String fields use UTF-8 encoding. Address strings follow the `local@domain` format defined in Section 17.2.
 
 Protocol version negotiation uses a single `uint32 version` field present in all top-level message types. The current protocol version is `1`. Nodes must reject messages with version numbers they do not support and return a `VERSION_NOT_SUPPORTED` error code.
 
@@ -2864,7 +2931,7 @@ The distributed identity registry exposes four operations:
 | Operation | Input | Output | Notes |
 |---|---|---|---|
 | `REGISTER` | `identity_record` | `ack` or `error` | Idempotent; re-registration updates the record if self-signature is valid |
-| `LOOKUP` | `address: string` | `identity_record` or `not_found` | Rate-limited per source; see Section 15.3.1 |
+| `LOOKUP` | `address: string` | `identity_record` or `not_found` | Rate-limited per source; see Section 16.3.1 |
 | `REVOKE` | `address`, `revocation_signature` | `ack` or `error` | Revocation is permanent; revoked keys cannot be re-registered |
 | `UPDATE` | `identity_record` | `ack` or `error` | For key rotation; triggers key-change notifications to whitelisted contacts |
 
@@ -2904,7 +2971,7 @@ attachment_record {
     content_type:     string
     size_bytes:       uint64
     content_hash:     bytes[32]      // SHA-256 of the plaintext attachment content
-    content:          bytes          // encrypted separately; see Section 16.3.3
+    content:          bytes          // encrypted separately; see Section 17.3.3
 }
 ```
 
@@ -2934,7 +3001,7 @@ encrypted_envelope {
     encrypted_payload:    bytes          // AES-256-GCM ciphertext of signed_message
     aead_tag:             bytes[16]      // GCM authentication tag
     nonce:                bytes[12]      // 96-bit random nonce for AES-GCM
-    payload_size_class:   uint32         // padded size class (see Section 15.2.3)
+    payload_size_class:   uint32         // padded size class (see Section 16.2.3)
     created_at:           uint64
 }
 ```
@@ -2991,7 +3058,7 @@ Relay nodes authenticate to each other and to clients using their registered DMC
 
 #### 16.4.3 Flow Control and Rate Limiting
 
-Relay nodes implement per-sender rate limiting based on the sender's registered identity. New identities (registered within the past 30 days) are subject to stricter throughput limits than established identities, implementing the reputation bootstrapping behaviour described in Section 12.5.
+Relay nodes implement per-sender rate limiting based on the sender's registered identity. New identities (registered within the past 30 days) are subject to stricter throughput limits than established identities, implementing the reputation bootstrapping behaviour described in Section 13.5.
 
 Rate limits are expressed as:
 - Maximum messages per hour per sending identity: default 500 (new identity), 5000 (established)
@@ -3096,7 +3163,7 @@ Planned first-generation extensions include: group messaging (multi-recipient en
 
 ---
 
-## 17. Performance and Scalability Analysis
+## 18. Performance and Scalability Analysis
 
 This section provides quantitative estimates of the DMCN's performance and scalability characteristics under realistic operating conditions. The estimates are derived from first-principles analysis of the proposed architecture, benchmarks of comparable systems, and published performance data for the cryptographic primitives involved. They are presented with explicit assumptions and uncertainty ranges, not as guaranteed specifications.
 
@@ -3215,7 +3282,7 @@ The end-to-end latency for a DMCN message from send to delivery for an online re
 
 | Component | Estimate | Notes |
 |---|---|---|
-| Sender cryptographic operations | ~200 µs | See Section 17.2 |
+| Sender cryptographic operations | ~200 µs | See Section 18.2 |
 | Hop 1 network latency | 20–100ms | Sender to first relay node |
 | Hop 1 relay processing | ~60 µs | Signature verify + route |
 | Hop 2 network latency | 20–100ms | Relay to relay |
@@ -3257,15 +3324,15 @@ Client-side message storage is bounded by the user's device storage and retentio
 
 Each message traverses 3 relay hops rather than the 1–2 hops typical in SMTP delivery. The bandwidth cost of each additional hop is one additional transmission of the encrypted message across the network. For a 50KB message traversing 3 hops, the total network bandwidth consumed is approximately **150KB** (3 × 50KB), compared to approximately **50–100KB** for a typical SMTP delivery.
 
-The onion routing overhead therefore increases total network bandwidth consumption by approximately **1.5–3×** relative to direct delivery. This is the privacy cost of the onion routing layer and is the correct trade-off given the privacy benefits described in Section 15.2.
+The onion routing overhead therefore increases total network bandwidth consumption by approximately **1.5–3×** relative to direct delivery. This is the privacy cost of the onion routing layer and is the correct trade-off given the privacy benefits described in Section 16.2.
 
 At Year 5 target scale (50 billion messages/day at 50KB each with 3× onion overhead), the total daily network bandwidth consumption of the DMCN is approximately **7.5 petabytes/day**. This is a large but entirely tractable figure — the global internet carries approximately **500 exabytes/day** of traffic, and global email traffic already accounts for a significant fraction of that.
 
 #### 17.6.2 Size Class Padding Overhead
 
-Message size class padding (Section 16.3.3) adds up to 3× overhead in the worst case (a 1KB message padded to the 4KB size class). For the average 50KB message, padding to the nearest size class (64KB) adds approximately 28% overhead. Across the full message volume, padding overhead is estimated at **15–30%** of total payload bandwidth.
+Message size class padding (Section 17.3.3) adds up to 3× overhead in the worst case (a 1KB message padded to the 4KB size class). For the average 50KB message, padding to the nearest size class (64KB) adds approximately 28% overhead. Across the full message volume, padding overhead is estimated at **15–30%** of total payload bandwidth.
 
-This is a worthwhile privacy cost: size normalisation substantially reduces the inferential value of traffic analysis as described in Section 15.2.3.
+This is a worthwhile privacy cost: size normalisation substantially reduces the inferential value of traffic analysis as described in Section 16.2.3.
 
 ---
 
