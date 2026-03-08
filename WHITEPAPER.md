@@ -124,7 +124,7 @@ daily without knowing they are doing so. The DMCN applies this same
 principle to messaging — cryptographic identity as infrastructure, not
 as a user-facing feature.
 
-This whitepaper is presented as Version 0.1 of an ongoing investigation.
+This whitepaper is presented as Version 0.2 of an ongoing investigation.
 It is a research agenda and design direction, not a finished
 specification. Several significant open challenges are documented ---
 including Sybil resistance, key recovery without central authority,
@@ -141,7 +141,7 @@ existing email ecosystem. This whitepaper is a proposal toward that
 combination.
 
 > **Central Thesis**
-> *Spam and email fraud are not filtering problems --- they are
+> *Spam and email fraud are not filtering problems — they are
 > identity problems. A mesh network where every node is
 > cryptographically identified and every message is cryptographically
 > signed eliminates the conditions under which spam is economically
@@ -235,7 +235,7 @@ the highest-impact cybercrime categories by financial loss.
 > **Scale of the Problem**
 > *Spam accounts for the majority of all email ever sent. Email fraud
 > costs the global economy billions annually. These are not edge cases
-> --- they are the normal operating conditions of the current system.*
+> — they are the normal operating conditions of the current system.*
 
 
 ### 1.3 The Structural Root Cause
@@ -592,7 +592,7 @@ QR code exchange in the mobile app.
 > *The DMCN does not require a central certificate authority to issue
 > or revoke identity credentials. Trust is established through direct
 > cryptographic verification and through the voluntary web of
-> attestations that users build over time --- exactly as trust is
+> attestations that users build over time — exactly as trust is
 > established in the physical world.*
 
 
@@ -955,7 +955,7 @@ translation at scale is an engineering challenge with proven solutions:
 
 > **Engineering Assessment**
 > *The SMTP-DMCN bridge is a significant but tractable engineering
-> project. It does not require novel cryptographic research --- it
+> project. It does not require novel cryptographic research — it
 > requires careful implementation of known patterns applied to a new
 > protocol boundary. A working prototype bridge is a realistic
 > deliverable for an initial proof-of-concept phase.*
@@ -1106,7 +1106,7 @@ greater identity sovereignty over time.
 > **Identity Sovereignty Principle**
 > *A provider-hosted address gives you a key to a house you rent. A
 > custom domain address gives you a key to a house you own. The DMCN
-> supports both --- but only one provides true long-term identity
+> supports both — but only one provides true long-term identity
 > independence.*
 
 
@@ -1220,10 +1220,10 @@ intercepts subsequent communication.
 
 
 > **Key Change Alert**
-> *When a whitelisted contact\'s public key changes, the DMCN client
+> *When a whitelisted contact's public key changes, the DMCN client
 > suspends delivery from that identity and alerts the user. No message
 > is delivered under an unconfirmed new key until the user explicitly
-> re-verifies. This is a deliberate friction point --- it is the
+> re-verifies. This is a deliberate friction point — it is the
 > correct response to a high-assurance security event.*
 
 
@@ -1454,7 +1454,7 @@ improves, maintains, or introduces new risk relative to the status quo.
 
 > **Methodology**
 > *This threat model follows a structured adversarial analysis
-> approach: for each threat, we identify the adversary\'s goal, the
+> approach: for each threat, we identify the adversary's goal, the
 > attack vector available under SMTP, the attack vector (if any)
 > available under DMCN, and the net change in risk. Threats are grouped
 > by adversary type: mass senders, targeted attackers, infrastructure
@@ -1523,8 +1523,7 @@ it non-zero in cost and permanently cumulative in consequence. A
 determined, well-resourced spam operation could potentially automate the
 account creation process (a Sybil attack), creating large numbers of
 identities before they are reported. Section 12.5 addresses Sybil
-resistance specifically. The consent-based inbox model (Section 6.2 of
-the main whitepaper) provides a secondary layer: even a registered
+resistance specifically. The consent-based inbox model (Section 6.2) provides a secondary layer: even a registered
 identity cannot reach a user's primary inbox without meeting one of the
 whitelisting criteria.
 
@@ -1788,7 +1787,7 @@ uneconomical levels:
 > *Sybil attacks: Improved relative to SMTP, but not fully solved. The
 > per-identity cost is non-zero and cumulative in consequence, raising
 > the economics of Sybil attacks. Full resistance requires careful
-> design of account creation friction --- a balance between security
+> design of account creation friction — a balance between security
 > and accessibility that requires user research and iteration.*
 
 
@@ -2063,8 +2062,8 @@ SMTP, the treatment under DMCN, and the net outcome for each:
 > *The DMCN architecture represents a meaningful and substantial
 > improvement over SMTP across every threat category where comparison
 > is possible. The threats that remain partially mitigated rather than
-> eliminated --- Sybil resistance, relay metadata leakage, key recovery
-> attacks, and bridge node risks --- are well-understood engineering
+> eliminated — Sybil resistance, relay metadata leakage, key recovery
+> attacks, and bridge node risks — are well-understood engineering
 > challenges with known mitigation approaches, rather than fundamental
 > architectural flaws. None of these residual risks represents a
 > regression relative to the current SMTP-based email ecosystem.*
@@ -2187,7 +2186,7 @@ DMCN is a proposal toward that solution.
 
 
 > **Next Steps**
-> *This whitepaper represents Version 0.1 of an ongoing investigation.
+> *This whitepaper represents Version 0.2 of an ongoing investigation.
 > Subsequent versions will incorporate technical prototyping results,
 > user research findings, and engagement with the broader cryptographic
 > and communications research community. Feedback, critique, and
