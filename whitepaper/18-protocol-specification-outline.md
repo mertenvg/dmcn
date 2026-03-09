@@ -225,6 +225,41 @@ Rate limits are expressed as:
 
 These defaults are configurable by relay node operators and represent recommended baseline values for the reference implementation.
 
+#### 18.4.4 Route Selection
+
+Route selection is a security-critical operation. A naive implementation that picks three relay nodes at random from the identity registry would provide substantially weaker anonymity than the protocol intends, because it would fail to prevent an adversary from placing colluding nodes at multiple positions in the same path. The client must apply the following constraints and weighting criteria when constructing a route.
+
+**Hard constraints — any path violating these must be rejected:**
+
+- No two nodes in the path may share the same registered operator identity.
+- No two nodes in the path may share the same /16 IPv4 subnet or /48 IPv6 prefix. This prevents two nodes hosted by the same provider from appearing in the same path even if registered under different identities.
+- No two nodes in the path may share the same Autonomous System Number (ASN), as determined from published BGP routing data. Nodes in the same ASN are under the administrative control of the same network operator and may share traffic visibility.
+- No node may appear more than once in the same path.
+- The exit node (R3) must have a current reputation score above the minimum threshold (default: 0) in the client's configured reputation feed. The exit node observes the recipient's relay address and represents the highest-trust position in the route.
+
+**Weighted selection criteria:**
+
+The client maintains a local relay node directory, refreshed from the identity registry on a configurable schedule (default: every 6 hours). Each node entry includes the metadata published in its `identity_record` plus locally cached measurements. Nodes are scored for selection using a weighted combination of:
+
+- **Reputation score** (weight: high) — drawn from the shared reputation feed. Nodes with long clean histories are preferred. Newly registered nodes (under 30 days) are down-weighted but not excluded.
+- **Latency estimate** (weight: medium) — derived from cached round-trip time measurements to the node, or from geographic proximity as a proxy when direct measurements are unavailable.
+- **Geographic region diversity** (weight: medium) — the three selected nodes should be in distinct geographic regions (different countries at minimum, different continental regions where possible) to maximise the number of distinct network vantage points an adversary would require to perform traffic correlation.
+- **Declared capacity** (weight: low) — nodes operating near capacity are down-weighted to distribute load across the relay network.
+
+**Position-specific considerations:**
+
+The entry node (R1) observes the sender's real IP address and is therefore the most sensitive position. Clients should maintain a small stable set of preferred entry nodes — analogous to Tor's guard node model — rotated infrequently (default: every 30 days) rather than selected fresh for each message. This prevents an adversary who operates many relay nodes from gaining a statistical probability of appearing at entry through repeated random selection over time.
+
+The middle node (R2) is the least sensitive position and may be selected with lower reputation requirements than entry or exit nodes.
+
+The exit node (R3) observes the recipient's relay address. It should be selected with the highest reputation weighting and should be in a different geographic region from both R1 and R2.
+
+**Route reuse and rotation:**
+
+A constructed route (circuit) is reused for a session window rather than reconstructed per message. The default session window is the duration of a single conversation thread or 10 minutes of inactivity, whichever comes first. Route rotation on a fixed time interval (default: 10 minutes of active use) limits the duration over which a compromised relay node can observe traffic from a given sender. Route reconstruction incurs latency overhead and should not occur more frequently than necessary.
+
+**Open question:** The optimal weighting algorithm for balancing latency, geographic diversity, and reputation in the DMCN's specific threat model requires empirical validation through prototype deployment. The values above are initial recommendations; they should be treated as configurable parameters subject to revision through the community review process described in Section 18.7. See also Section 15.6.
+
 ---
 
 ### 18.5 Storage and Delivery Layer
