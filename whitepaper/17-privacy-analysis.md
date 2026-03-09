@@ -118,6 +118,18 @@ Under the EU General Data Protection Regulation and equivalent frameworks, any e
 
 This has practical implications: bridge operators must have a lawful basis for processing, must respond to data subject access requests, must implement appropriate technical and organisational security measures, and must be located in or have adequate data transfer arrangements with the jurisdictions in which their users reside. The DMCN Bridge Operator Protocol (BOP) should incorporate these requirements as conditions of registry participation, so that users can trust that any registered bridge operator meets a minimum compliance baseline.
 
+#### 17.4.4 IMAP and POP3 Bridge Privacy
+
+The local IMAP bridge model described in Section 10.6 introduces a privacy surface distinct from both the native DMCN path and the SMTP bridge path, and its privacy properties depend critically on where the bridge process runs.
+
+**Local bridge (runs on user's device):** The private key remains in the device's secure enclave. Decryption occurs in the local bridge process; cleartext is present only in memory on the user's own hardware and is never transmitted to any third party. The IMAP connection is to localhost only. This model preserves end-to-end encryption end-to-user — the privacy properties are equivalent to the native DMCN client for inbound messages. The local bridge process itself is a potential attack surface (a malicious or compromised bridge binary could exfiltrate decrypted content), which makes the integrity of the bridge software supply chain a security requirement. Bridge software should be open source, reproducibly built, and distributed through verifiable channels.
+
+**Server-side bridge (runs on a third-party server):** Decryption necessarily occurs on the server, meaning the bridge operator has access to message plaintext. The privacy model degrades to that of a conventional hosted email provider — better than unauthenticated SMTP but short of true end-to-end encryption. Server-side IMAP bridges should be treated as equivalent to SMTP bridge nodes for privacy disclosure purposes: users must be clearly informed that the bridge operator can read their messages, and the operator must meet the same data controller obligations described in Section 17.4.3.
+
+**POP3 considerations:** POP3 is a simpler protocol than IMAP — it downloads messages to the client and (by default) deletes them from the server. A local POP3 bridge is viable under the same security model as the local IMAP bridge. However, POP3's lack of server-side folder synchronisation makes it unsuitable for multi-device use, which limits its practical relevance as a transition mechanism. IMAP is the recommended bridge protocol for enterprise deployments.
+
+**Recommendation:** The DMCN specification should mandate that any local bridge implementation stores no cleartext on disk — decrypted message content should be held in memory only and written to local storage exclusively in re-encrypted form using a key derived from the user's authentication credential. This prevents cleartext message recovery from disk forensics on a seized or stolen device.
+
 ---
 
 ### 17.5 Regulatory Privacy Compliance in a Decentralised Architecture
@@ -157,16 +169,16 @@ The DMCN client should implement a full data export function that produces a por
 
 The table below summarises the DMCN's privacy properties across key dimensions, compared to the SMTP baseline.
 
-| Privacy Dimension | SMTP (Gmail/Outlook) | DMCN Native | DMCN via Bridge |
-|---|---|---|---|
-| Message content visible to provider | Yes — always | No — E2EE | Yes — to bridge operator |
-| Message content visible to relay infrastructure | Yes — historically; TLS in transit only | No — E2EE throughout | Partial — decrypted at bridge |
-| Sender/recipient visible to relay nodes | Yes — full headers | Pseudonymous public keys only | Yes — to bridge operator |
-| Metadata visible to passive network observer | Yes — sender/recipient, timing, size | Timing and size only (onion routing limits more) | Timing and size |
-| Social graph inferable from infrastructure | Yes — from provider data | Partially — from registry attestations | Partially |
-| Account existence discoverable | Yes — MX lookup | Yes — registry query | Yes |
-| Data subject rights (GDPR etc.) | Provider is data controller; rights exercisable | Distributed; complex controller picture | Bridge operator is data controller |
-| Message retention | Provider-controlled; typically indefinite | Relay node retention policy; finite | Bridge operator retention policy |
+| Privacy Dimension | SMTP (Gmail/Outlook) | DMCN Native | DMCN via SMTP Bridge | DMCN via Local IMAP Bridge |
+|---|---|---|---|---|
+| Message content visible to provider | Yes — always | No — E2EE | Yes — to bridge operator | No — decryption on device |
+| Message content visible to relay infrastructure | Yes — historically; TLS in transit only | No — E2EE throughout | Partial — decrypted at bridge | No — E2EE to local bridge |
+| Sender/recipient visible to relay nodes | Yes — full headers | Pseudonymous public keys only | Yes — to bridge operator | Pseudonymous public keys only |
+| Metadata visible to passive network observer | Yes — sender/recipient, timing, size | Timing and size only (onion routing limits more) | Timing and size | Timing and size |
+| Social graph inferable from infrastructure | Yes — from provider data | Partially — from registry attestations | Partially | Partially |
+| Account existence discoverable | Yes — MX lookup | Yes — registry query | Yes | Yes |
+| Data subject rights (GDPR etc.) | Provider is data controller; rights exercisable | Distributed; complex controller picture | Bridge operator is data controller | User is controller; local storage only |
+| Message retention | Provider-controlled; typically indefinite | Relay node retention policy; finite | Bridge operator retention policy | User-controlled local storage |
 
 ---
 
@@ -189,6 +201,8 @@ The privacy analysis above yields the following concrete design recommendations 
 **Data export function** — implement a full, portable, encrypted data export in the DMCN client to satisfy data portability obligations and enable client migration.
 
 **Regulatory working group** — establish a dedicated working group within the DMCN governance structure to engage with data protection authorities and develop jurisdiction-specific compliance guidance.
+
+**Local IMAP bridge cleartext policy** — mandate that local IMAP and POP3 bridge implementations store no decrypted message content on disk; cleartext must be held in memory only and written to local storage exclusively in re-encrypted form, preventing recovery from disk forensics on a seized or stolen device.
 
 
 
