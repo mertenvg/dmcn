@@ -30,7 +30,7 @@ Version 0.2 — Integrated Draft · March 2026 · *CONFIDENTIAL — Draft for Re
 - [10. Transition Strategy: Coexistence with Legacy Email](#10-transition-strategy)
 - [11. The SMTP-DMCN Bridge Architecture](#11-the-smtp-dmcn-bridge-architecture)
 - [12. Bringing Existing Email Addresses to the DMCN](#12-bringing-existing-email-addresses-to-the-dmcn)
-- [13. Trust Management: Whitelists, Greylists, and Blacklists](#13-trust-management)
+- [13. Trust Management: Whitelists, Greylists, and Blocklists](#13-trust-management)
 - [14. Threat Model](#14-threat-model)
 - [15. Open Challenges and Research Questions](#15-open-challenges-and-research-questions)
 - [16. Conclusion](#16-conclusion)
@@ -107,7 +107,7 @@ The primary contributions of this investigation are:
 
 - An analysis of address portability — the mechanism by which existing email addresses can be brought into the DMCN identity layer without requiring users to abandon their established address — and its implications for adoption and spam resistance
 
-- A layered trust management framework covering whitelists, greylists, shared reputation feeds, and the cryptographic blacklisting model that makes identity reputation permanent and non-transferable
+- A layered trust management framework covering whitelists, greylists, shared reputation feeds, and the cryptographic blocklisting model that makes identity reputation permanent and non-transferable
 
 - A threat model covering eight adversary categories, comparing DMCN's threat surface against SMTP and providing an honest assessment of which threats are eliminated, which are mitigated, and which remain open challenges
 
@@ -845,7 +845,7 @@ Each device on which the user activates their DMCN account generates its own **d
 
 Device sub-keys serve two functions. First, they are the keys actually used for per-message encryption and signing on that device — the primary key is not used for routine message operations, reducing its exposure. Second, they allow per-device revocation: if a device is lost, stolen, or decommissioned, only that device's sub-key need be revoked. The primary key, the identity's trust relationships, and all other active devices are unaffected.
 
-Sub-keys are registered in the identity registry as children of the primary key record and are returned alongside the primary key in registry lookups. Senders who wish to send to a multi-device user encrypt the message to each active device sub-key simultaneously, so that the recipient can decrypt on whichever device they first open the message.
+Sub-keys are registered in the identity registry as children of the primary key record and are returned alongside the primary key in registry lookups. When sending to a multi-device user, the message payload is encrypted exactly once using a single randomly generated symmetric content key. That content key is then individually wrapped (encrypted) for each active device sub-key. Any device that holds the corresponding private sub-key can unwrap the content key and decrypt the payload. This approach — a Key Encapsulation Mechanism (KEM) pattern — ensures that message and attachment payload bytes appear on the wire only once regardless of how many devices the recipient has enrolled, eliminating the per-recipient payload duplication that would otherwise result. The protocol structure for this is defined in Section 15.3.3.
 
 #### 7.5.3 Sub-Key Lifecycle
 
@@ -920,10 +920,9 @@ identities that meet one of the following criteria:
 
 - The recipient has explicitly opted in to receiving messages from unknown senders (for public figures or customer-facing businesses).
 
-Messages from senders that do not meet any of these criteria are placed
-in a pending queue where the recipient can review them. These messages
-still bear valid cryptographic signatures — the sender's identity is
-known — allowing the recipient to make an informed decision.
+Before any of these criteria are evaluated, the sender's cryptographic identity is checked against the recipient's personal blocklist and any shared reputation feeds the recipient has subscribed to. A sender present on either is silently dropped at the relay node before the message reaches the recipient's device — no delivery failure is returned to the sender, and no notification is shown to the recipient. Blocklist evaluation is a prerequisite gate, not a fallback; it applies regardless of whether the sender would otherwise have qualified for inbox or greylist delivery.
+
+Messages from senders that clear the blocklist check but do not meet any of the whitelist criteria are placed in a pending queue where the recipient can review them. These messages still bear valid cryptographic signatures — the sender's identity is known — allowing the recipient to make an informed decision.
 
 
 ### 8.3 Economic Disincentives for Spam
@@ -1651,7 +1650,7 @@ The DAR model intersects with several other sections of this whitepaper:
 
 ---
 
-## 14. Trust Management: Whitelists, Greylists, and Blacklists
+## 14. Trust Management: Whitelists, Greylists, and Blocklists
 
 
 Cryptographic identity verification is the foundation of the DMCN's
@@ -1664,7 +1663,7 @@ define, on their own terms, who they trust, who they are uncertain
 about, and who they actively reject.
 
 The DMCN's trust management system operates at three tiers ---
-whitelist, greylist, and blacklist — each with distinct delivery
+whitelist, greylist, and blocklist — each with distinct delivery
 semantics, key storage implications, and sharing properties. Together
 they form a layered defence that is more powerful than anything
 available in legacy email, precisely because the identities being
@@ -1774,8 +1773,8 @@ From the greylist queue the user has four options for each pending
 message: Accept and whitelist the sender (promoting all future messages
 to the primary inbox), Accept this message only (delivering the message
 without whitelisting the sender), Reject and ignore (discarding the
-message without any notification to the sender), or Reject and blacklist
-(discarding the message and adding the sender to the blacklist to
+message without any notification to the sender), or Reject and blocklist
+(discarding the message and adding the sender to the blocklist to
 prevent future delivery attempts).
 
 
@@ -1792,7 +1791,7 @@ demote senders based on network signals:
 
 - Auto-promote if the sender's identity has a reputation score above a configurable threshold in the user's chosen shared reputation feed.
 
-- Auto-reject if the sender's identity appears on any blacklist feed the user has subscribed to.
+- Auto-reject if the sender's identity appears on any blocklist feed the user has subscribed to.
 
 These rules run at delivery time, before the message reaches the pending
 queue, and are fully configurable. Users who want complete manual
@@ -1801,24 +1800,24 @@ automated experience can enable conservative defaults that handle the
 common cases without requiring intervention.
 
 
-### 14.3 The Blacklist: Blocking Known Bad Actors
+### 14.3 The Blocklist: Blocking Known Bad Actors
 
 
-The blacklist is the user's registry of explicitly rejected senders.
+The blocklist is the user's registry of explicitly rejected senders.
 Unlike a legacy email block — which can be trivially circumvented by
-creating a new address — a DMCN blacklist entry is bound to a
-cryptographic identity. A blacklisted sender cannot reach the user by
+creating a new address — a DMCN blocklist entry is bound to a
+cryptographic identity. A blocklisted sender cannot reach the user by
 creating a new address, because their underlying key pair is what is
 blocked, not the surface-level address string. This is a fundamentally
 stronger guarantee than any blocking mechanism available in legacy
 email.
 
 
-#### 14.3.1 Personal Blacklist
+#### 14.3.1 Personal Blocklist
 
 
-The personal blacklist is private to the user and is never shared
-externally. Adding a sender to the personal blacklist causes the DMCN
+The personal blocklist is private to the user and is never shared
+externally. Adding a sender to the personal blocklist causes the DMCN
 relay nodes handling the user's incoming messages to silently drop any
 message signed by that identity before it reaches the user's device ---
 the sender receives no delivery failure notification and no indication
@@ -1826,7 +1825,7 @@ that they have been blocked. This is consistent with the behaviour of
 email blocking in major clients today and prevents the blocked sender
 from using delivery failures as a signal to probe for workarounds.
 
-Personal blacklist entries include the blocked identity's public key,
+Personal blocklist entries include the blocked identity's public key,
 the address at which they were known, the date of blocking, and an
 optional private note from the user recording their reason for the
 block. This note is stored encrypted with the user's private key and is
@@ -1836,7 +1835,7 @@ never transmitted.
 #### 14.3.2 Shared Reputation Feeds
 
 
-Beyond the personal blacklist, the DMCN supports an opt-in shared
+Beyond the personal blocklist, the DMCN supports an opt-in shared
 reputation feed system — a decentralised, community-maintained
 registry of known bad actor public keys. This is the cryptographic
 equivalent of the DNS-based blocklists (RBLs/DNSBLs) that legacy email
@@ -1882,7 +1881,7 @@ they are subscribed to. The report is signed with the reporting user's
 private key, providing cryptographic accountability for the report ---
 false or malicious reports can be traced back to the reporter's
 identity. This accountability mechanism is important: it discourages
-coordinated campaigns to falsely blacklist legitimate identities,
+coordinated campaigns to falsely blocklist legitimate identities,
 because the reporters themselves are identifiable.
 
 Feed operators implement their own thresholds and policies for when a
@@ -1897,7 +1896,7 @@ positives versus false negatives.
 #### 14.3.5 The Persistence Advantage
 
 
-The most significant property of a cryptographic blacklist relative to
+The most significant property of a cryptographic blocklist relative to
 its legacy equivalents deserves explicit emphasis. When a DMCN identity
 is reported and listed across multiple feeds, that listing is
 effectively permanent for that key pair. The spammer's investment in
@@ -1940,7 +1939,7 @@ from profitable to unprofitable.
                                                      displayed      
 
   Personal      Explicitly rejected  Silently        Yes — key    No (private)
-  Blacklist     sender               dropped at      blocked        
+  Blocklist     sender               dropped at      blocked        
                                      relay                          
 
   Shared        Community-reported   Dropped per     Yes —        Yes ---
@@ -2141,29 +2140,48 @@ Recipients must verify `sender_signature` after decryption. A message with an in
 
 #### 15.3.3 Encrypted Envelope
 
-The `signed_message` is encrypted using a hybrid encryption scheme: an ephemeral X25519 key pair is generated for each message, a shared secret is derived via X25519 key exchange between the ephemeral private key and the recipient's `x25519_public_key`, and the shared secret is used to derive a symmetric key via HKDF-SHA256 for AES-256-GCM encryption of the message content.
+The DMCN uses a **Key Encapsulation Mechanism (KEM)** pattern for message encryption. This separates the encryption of the message payload (which happens once, regardless of how many devices the recipient has enrolled) from the distribution of the decryption key (which is wrapped individually for each intended recipient key). The result is that large payloads and attachments appear on the wire exactly once, with only a small per-recipient overhead for the wrapped key material.
+
+**Step 1 — Generate a content key.** The sender generates a random 256-bit symmetric content key (CEK, Content Encryption Key) for the message. This key is used to encrypt the `signed_message` payload once using AES-256-GCM.
+
+**Step 2 — Wrap the CEK for each recipient key.** For each device sub-key (or primary key, if no sub-keys are active) of the intended recipient, the sender performs an X25519 key exchange between a freshly generated ephemeral private key and the recipient key's `x25519_public_key`. The resulting shared secret is passed through HKDF-SHA256 to derive a 256-bit key-wrapping key (KWK), which is used to encrypt the CEK using AES-256-GCM. Each such wrapped CEK, together with the ephemeral public key used to produce it, forms a `recipient_record`. The ephemeral key pair is discarded after wrapping; a distinct ephemeral key is generated per recipient key.
+
+**Step 3 — Assemble the envelope.** The encrypted payload and the set of recipient records are assembled into a single `encrypted_envelope`:
 
 ```
+recipient_record {
+    recipient_pubkey:     bytes[32]   // X25519 public key this record is wrapped for
+    ephemeral_pubkey:     bytes[32]   // ephemeral X25519 public key used for this wrapping
+    wrapped_cek:          bytes[32]   // AES-256-GCM ciphertext of the 256-bit CEK
+    wrap_aead_tag:        bytes[16]   // GCM authentication tag for the CEK wrapping
+    wrap_nonce:           bytes[12]   // 96-bit random nonce for the CEK wrapping
+}
+
 encrypted_envelope {
     version:              uint32
-    message_id:           bytes[16]      // matches plaintext_message.message_id
-    recipient_pubkey:     bytes[32]      // X25519 public key of intended recipient
-    ephemeral_pubkey:     bytes[32]      // ephemeral X25519 public key
-    encrypted_payload:    bytes          // AES-256-GCM ciphertext of signed_message
-    aead_tag:             bytes[16]      // GCM authentication tag
-    nonce:                bytes[12]      // 96-bit random nonce for AES-GCM
-    payload_size_class:   uint32         // padded size class (see Section 18.2.3)
+    message_id:           bytes[16]               // matches plaintext_message.message_id
+    recipients:           repeated recipient_record // one entry per enrolled device key
+    encrypted_payload:    bytes                    // AES-256-GCM ciphertext of signed_message
+    payload_aead_tag:     bytes[16]               // GCM authentication tag for the payload
+    payload_nonce:        bytes[12]               // 96-bit random nonce for payload encryption
+    payload_size_class:   uint32                  // padded size class (see Section 18.2.3)
     created_at:           uint64
 }
 ```
+
+**Decryption.** A recipient device locates the `recipient_record` whose `recipient_pubkey` matches its own device sub-key. It performs X25519 key exchange between its private sub-key and the `ephemeral_pubkey` in that record, derives the KWK via HKDF-SHA256, and uses it to unwrap the CEK. It then uses the CEK to decrypt the `encrypted_payload`. No other device's `recipient_record` is needed or accessed.
+
+**Wire overhead.** Each `recipient_record` is 108 bytes (32 + 32 + 32 + 16 + 12 + 4 bytes padding alignment). For a user with five enrolled devices, the total per-recipient overhead is 540 bytes — negligible relative to even a minimal message payload. The payload itself, regardless of size, is encrypted and transmitted exactly once.
 
 The `payload_size_class` field records the size bucket into which the payload has been padded (e.g. 1KB, 4KB, 16KB, 64KB, 256KB, 1MB), not the actual payload size. Relay nodes and passive observers can observe only the size class, not the precise message size.
 
 #### 15.3.4 Attachment Handling
 
-Attachments are encrypted separately from the message body using the same hybrid scheme, with a separate ephemeral key pair per attachment. The `attachment_record` in the `plaintext_message` contains the `content_hash` of the plaintext attachment for integrity verification after decryption, but the attachment content itself is stored as a separately addressed blob in the storage layer, referenced by `attachment_id`.
+Attachments use the same KEM pattern as the message envelope, but are encrypted and stored independently of it. Each attachment is encrypted with its own randomly generated CEK, and that CEK is wrapped for each recipient device sub-key exactly as in Section 15.3.3. The resulting `attachment_envelope` has the same `recipients` / `encrypted_payload` structure as the message envelope, with the attachment ciphertext as the payload.
 
-This separation allows large attachments to be stored and retrieved independently of the message envelope, reducing storage requirements at relay nodes that buffer messages for offline recipients.
+The `attachment_record` embedded in the `plaintext_message` contains the `content_hash` of the plaintext attachment for integrity verification after decryption, but the attachment ciphertext itself is stored as a separately addressed blob in the storage layer, referenced by `attachment_id`. This separation allows large attachments to be stored and retrieved independently of the message envelope, reducing storage requirements at relay nodes that buffer messages for offline recipients, and allowing recipients to defer download of large attachments until they choose to open them.
+
+Because each attachment has its own CEK, a recipient who receives a message with three attachments can decrypt the message body immediately using the message CEK, and decrypt each attachment independently as they open it — without re-fetching or re-processing the message envelope.
 
 ---
 
@@ -2579,7 +2597,7 @@ cost on account creation — and critically, each identity's reputation
 is permanent and non-transferable.
 
 A spam operator who wishes to send at scale must create a large number
-of registered identities. Each identity that is reported and blacklisted
+of registered identities. Each identity that is reported and blocklisted
 is permanently lost — there is no equivalent of rotating to a new IP
 address. The mathematical relationship between spam volume and identity
 cost shifts the economics of spam from profitable to uneconomical at
@@ -2821,7 +2839,7 @@ beyond the realistic adversary.
 A Sybil attack occurs when a malicious actor creates a large number of
 fake identities to subvert a trust-based system. In the context of the
 DMCN, the primary Sybil attack scenarios are: creating large numbers of
-identities to conduct spam campaigns before they are blacklisted;
+identities to conduct spam campaigns before they are blocklisted;
 creating fake identities to inflate web-of-trust vouching for a
 malicious identity; and creating fake identities to manipulate shared
 reputation feeds.
@@ -2834,7 +2852,7 @@ SMTP is essentially infinitely susceptible to Sybil attacks — there is
 no meaningful identity system to attack, and the cost of registering a
 new sending domain is a few dollars. The DMCN's identity model is
 inherently more resistant because it requires account creation friction,
-and because blacklisted identities cannot be recovered. However, the
+and because blocklisted identities cannot be recovered. However, the
 DMCN is not immune, and Sybil resistance is one of the most significant
 open design challenges.
 
@@ -3309,7 +3327,7 @@ The DMCN specification should define a maximum message retention period for rela
 
 GDPR Article 20 grants data subjects the right to receive their personal data in a structured, machine-readable format and to transmit it to another controller. In practice, for a messaging system, this means the user's message history, contact list, and trust relationships.
 
-The DMCN client should implement a full data export function that produces a portable, encrypted archive of the user's message history, whitelist, greylist, blacklist, and trust attestations in a documented, open format. This export serves both the regulatory compliance function and the practical function of enabling migration between DMCN client applications without loss of data.
+The DMCN client should implement a full data export function that produces a portable, encrypted archive of the user's message history, whitelist, greylist, blocklist, and trust attestations in a documented, open format. This export serves both the regulatory compliance function and the practical function of enabling migration between DMCN client applications without loss of data.
 
 ---
 
@@ -3518,8 +3536,8 @@ Terms are listed alphabetically. Where a term has a common abbreviation used in 
 
 ---
 
-**Blacklist**
-A user-maintained or community-maintained registry of cryptographic identities that are explicitly blocked from delivering messages. In the DMCN, blacklist entries are bound to public keys rather than surface addresses, making them impossible to circumvent by simply creating a new address string. See also: *Greylist*, *Whitelist*, *Shared Reputation Feed*.
+**Blocklist**
+A user-maintained or community-maintained registry of cryptographic identities that are explicitly blocked from delivering messages. In the DMCN, blocklist entries are bound to public keys rather than surface addresses, making them impossible to circumvent by simply creating a new address string. See also: *Greylist*, *Whitelist*, *Shared Reputation Feed*.
 
 ---
 
@@ -3605,6 +3623,11 @@ In the DMCN trust model, the greylist is the holding area for messages from send
 
 **Key Pair**
 A matched pair of cryptographic keys — a public key and a private key — generated together using a mathematical relationship such that data encrypted with the public key can only be decrypted with the corresponding private key, and data signed with the private key can be verified with the public key. In the DMCN, every user identity is represented by a key pair; the public key is published in the identity registry, while the private key never leaves the user's device.
+
+---
+
+**Key Encapsulation Mechanism (KEM)**
+A cryptographic pattern in which a message payload is encrypted once with a randomly generated symmetric content key (CEK), and the CEK is then individually wrapped (encrypted) for each intended recipient using that recipient's public key. Any recipient who holds the corresponding private key can unwrap the CEK and decrypt the payload. The KEM pattern ensures that large payloads are transmitted exactly once regardless of how many recipients or enrolled devices are involved, with only small per-recipient overhead for the wrapped key material. The DMCN uses a KEM pattern for all message and attachment encryption (Section 15.3.3). The approach is standardised in RFC 9180 (HPKE).
 
 ---
 
@@ -3694,7 +3717,7 @@ An email authentication standard that allows domain owners to publish, via DNS, 
 ---
 
 **Sybil Attack**
-An attack on a trust-based network in which a malicious actor creates a large number of fake identities to gain disproportionate influence or to overwhelm defences. In the DMCN context, the primary Sybil attack scenario involves creating many registered identities to conduct spam campaigns before they are blacklisted. The DMCN mitigates this through account creation friction and permanent reputation consequences, but full Sybil resistance is an open design challenge.
+An attack on a trust-based network in which a malicious actor creates a large number of fake identities to gain disproportionate influence or to overwhelm defences. In the DMCN context, the primary Sybil attack scenario involves creating many registered identities to conduct spam campaigns before they are blocklisted. The DMCN mitigates this through account creation friction and permanent reputation consequences, but full Sybil resistance is an open design challenge.
 
 ---
 
@@ -3770,6 +3793,10 @@ https://www.rfc-editor.org/rfc/rfc5652
 **[RFC7519]**
 Jones, M., Bradley, J., & Sakimura, N. (2015). *JSON Web Token (JWT)*. RFC 7519. Internet Engineering Task Force.
 https://www.rfc-editor.org/rfc/rfc7519
+
+**[RFC9180]**
+Barnes, R., Bhargavan, K., Lipp, B., & Wood, C. (2022). *Hybrid Public Key Encryption (HPKE)*. RFC 9180. Internet Engineering Task Force. (Standardises the KEM + KDF + AEAD pattern used in the DMCN encrypted envelope design.)
+https://www.rfc-editor.org/rfc/rfc9180
 
 ---
 

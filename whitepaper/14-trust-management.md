@@ -1,4 +1,4 @@
-## 14. Trust Management: Whitelists, Greylists, and Blacklists
+## 14. Trust Management: Whitelists, Greylists, and Blocklists
 
 
 Cryptographic identity verification is the foundation of the DMCN's
@@ -11,7 +11,7 @@ define, on their own terms, who they trust, who they are uncertain
 about, and who they actively reject.
 
 The DMCN's trust management system operates at three tiers ---
-whitelist, greylist, and blacklist — each with distinct delivery
+whitelist, greylist, and blocklist — each with distinct delivery
 semantics, key storage implications, and sharing properties. Together
 they form a layered defence that is more powerful than anything
 available in legacy email, precisely because the identities being
@@ -121,8 +121,8 @@ From the greylist queue the user has four options for each pending
 message: Accept and whitelist the sender (promoting all future messages
 to the primary inbox), Accept this message only (delivering the message
 without whitelisting the sender), Reject and ignore (discarding the
-message without any notification to the sender), or Reject and blacklist
-(discarding the message and adding the sender to the blacklist to
+message without any notification to the sender), or Reject and blocklist
+(discarding the message and adding the sender to the blocklist to
 prevent future delivery attempts).
 
 
@@ -139,7 +139,7 @@ demote senders based on network signals:
 
 - Auto-promote if the sender's identity has a reputation score above a configurable threshold in the user's chosen shared reputation feed.
 
-- Auto-reject if the sender's identity appears on any blacklist feed the user has subscribed to.
+- Auto-reject if the sender's identity appears on any blocklist feed the user has subscribed to.
 
 These rules run at delivery time, before the message reaches the pending
 queue, and are fully configurable. Users who want complete manual
@@ -148,24 +148,24 @@ automated experience can enable conservative defaults that handle the
 common cases without requiring intervention.
 
 
-### 14.3 The Blacklist: Blocking Known Bad Actors
+### 14.3 The Blocklist: Blocking Known Bad Actors
 
 
-The blacklist is the user's registry of explicitly rejected senders.
+The blocklist is the user's registry of explicitly rejected senders.
 Unlike a legacy email block — which can be trivially circumvented by
-creating a new address — a DMCN blacklist entry is bound to a
-cryptographic identity. A blacklisted sender cannot reach the user by
+creating a new address — a DMCN blocklist entry is bound to a
+cryptographic identity. A blocklisted sender cannot reach the user by
 creating a new address, because their underlying key pair is what is
 blocked, not the surface-level address string. This is a fundamentally
 stronger guarantee than any blocking mechanism available in legacy
 email.
 
 
-#### 14.3.1 Personal Blacklist
+#### 14.3.1 Personal Blocklist
 
 
-The personal blacklist is private to the user and is never shared
-externally. Adding a sender to the personal blacklist causes the DMCN
+The personal blocklist is private to the user and is never shared
+externally. Adding a sender to the personal blocklist causes the DMCN
 relay nodes handling the user's incoming messages to silently drop any
 message signed by that identity before it reaches the user's device ---
 the sender receives no delivery failure notification and no indication
@@ -173,7 +173,7 @@ that they have been blocked. This is consistent with the behaviour of
 email blocking in major clients today and prevents the blocked sender
 from using delivery failures as a signal to probe for workarounds.
 
-Personal blacklist entries include the blocked identity's public key,
+Personal blocklist entries include the blocked identity's public key,
 the address at which they were known, the date of blocking, and an
 optional private note from the user recording their reason for the
 block. This note is stored encrypted with the user's private key and is
@@ -183,7 +183,7 @@ never transmitted.
 #### 14.3.2 Shared Reputation Feeds
 
 
-Beyond the personal blacklist, the DMCN supports an opt-in shared
+Beyond the personal blocklist, the DMCN supports an opt-in shared
 reputation feed system — a decentralised, community-maintained
 registry of known bad actor public keys. This is the cryptographic
 equivalent of the DNS-based blocklists (RBLs/DNSBLs) that legacy email
@@ -229,7 +229,7 @@ they are subscribed to. The report is signed with the reporting user's
 private key, providing cryptographic accountability for the report ---
 false or malicious reports can be traced back to the reporter's
 identity. This accountability mechanism is important: it discourages
-coordinated campaigns to falsely blacklist legitimate identities,
+coordinated campaigns to falsely blocklist legitimate identities,
 because the reporters themselves are identifiable.
 
 Feed operators implement their own thresholds and policies for when a
@@ -244,7 +244,7 @@ positives versus false negatives.
 #### 14.3.5 The Persistence Advantage
 
 
-The most significant property of a cryptographic blacklist relative to
+The most significant property of a cryptographic blocklist relative to
 its legacy equivalents deserves explicit emphasis. When a DMCN identity
 is reported and listed across multiple feeds, that listing is
 effectively permanent for that key pair. The spammer's investment in
@@ -287,7 +287,7 @@ from profitable to unprofitable.
                                                      displayed      
 
   Personal      Explicitly rejected  Silently        Yes — key    No (private)
-  Blacklist     sender               dropped at      blocked        
+  Blocklist     sender               dropped at      blocked        
                                      relay                          
 
   Shared        Community-reported   Dropped per     Yes —        Yes ---
@@ -299,3 +299,4 @@ from profitable to unprofitable.
 
 
 ---
+

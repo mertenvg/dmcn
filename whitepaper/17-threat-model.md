@@ -65,7 +65,7 @@ cost on account creation — and critically, each identity's reputation
 is permanent and non-transferable.
 
 A spam operator who wishes to send at scale must create a large number
-of registered identities. Each identity that is reported and blacklisted
+of registered identities. Each identity that is reported and blocklisted
 is permanently lost — there is no equivalent of rotating to a new IP
 address. The mathematical relationship between spam volume and identity
 cost shifts the economics of spam from profitable to uneconomical at
@@ -307,7 +307,7 @@ beyond the realistic adversary.
 A Sybil attack occurs when a malicious actor creates a large number of
 fake identities to subvert a trust-based system. In the context of the
 DMCN, the primary Sybil attack scenarios are: creating large numbers of
-identities to conduct spam campaigns before they are blacklisted;
+identities to conduct spam campaigns before they are blocklisted;
 creating fake identities to inflate web-of-trust vouching for a
 malicious identity; and creating fake identities to manipulate shared
 reputation feeds.
@@ -320,7 +320,7 @@ SMTP is essentially infinitely susceptible to Sybil attacks — there is
 no meaningful identity system to attack, and the cost of registering a
 new sending domain is a few dollars. The DMCN's identity model is
 inherently more resistant because it requires account creation friction,
-and because blacklisted identities cannot be recovered. However, the
+and because blocklisted identities cannot be recovered. However, the
 DMCN is not immune, and Sybil resistance is one of the most significant
 open design challenges.
 
@@ -631,3 +631,4 @@ SMTP, the treatment under DMCN, and the net outcome for each:
 
 
 ---
+

@@ -35,10 +35,9 @@ identities that meet one of the following criteria:
 
 - The recipient has explicitly opted in to receiving messages from unknown senders (for public figures or customer-facing businesses).
 
-Messages from senders that do not meet any of these criteria are placed
-in a pending queue where the recipient can review them. These messages
-still bear valid cryptographic signatures — the sender's identity is
-known — allowing the recipient to make an informed decision.
+Before any of these criteria are evaluated, the sender's cryptographic identity is checked against the recipient's personal blocklist and any shared reputation feeds the recipient has subscribed to. A sender present on either is silently dropped at the relay node before the message reaches the recipient's device — no delivery failure is returned to the sender, and no notification is shown to the recipient. Blocklist evaluation is a prerequisite gate, not a fallback; it applies regardless of whether the sender would otherwise have qualified for inbox or greylist delivery.
+
+Messages from senders that clear the blocklist check but do not meet any of the whitelist criteria are placed in a pending queue where the recipient can review them. These messages still bear valid cryptographic signatures — the sender's identity is known — allowing the recipient to make an informed decision.
 
 
 ### 8.3 Economic Disincentives for Spam
@@ -56,3 +55,4 @@ prohibitive.
 
 
 ---
+
