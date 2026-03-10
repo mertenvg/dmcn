@@ -186,29 +186,48 @@ Recipients must verify `sender_signature` after decryption. A message with an in
 
 #### 15.3.3 Encrypted Envelope
 
-The `signed_message` is encrypted using a hybrid encryption scheme: an ephemeral X25519 key pair is generated for each message, a shared secret is derived via X25519 key exchange between the ephemeral private key and the recipient's `x25519_public_key`, and the shared secret is used to derive a symmetric key via HKDF-SHA256 for AES-256-GCM encryption of the message content.
+The DMCN uses a **Key Encapsulation Mechanism (KEM)** pattern for message encryption. This separates the encryption of the message payload (which happens once, regardless of how many devices the recipient has enrolled) from the distribution of the decryption key (which is wrapped individually for each intended recipient key). The result is that large payloads and attachments appear on the wire exactly once, with only a small per-recipient overhead for the wrapped key material.
+
+**Step 1 — Generate a content key.** The sender generates a random 256-bit symmetric content key (CEK, Content Encryption Key) for the message. This key is used to encrypt the `signed_message` payload once using AES-256-GCM.
+
+**Step 2 — Wrap the CEK for each recipient key.** For each device sub-key (or primary key, if no sub-keys are active) of the intended recipient, the sender performs an X25519 key exchange between a freshly generated ephemeral private key and the recipient key's `x25519_public_key`. The resulting shared secret is passed through HKDF-SHA256 to derive a 256-bit key-wrapping key (KWK), which is used to encrypt the CEK using AES-256-GCM. Each such wrapped CEK, together with the ephemeral public key used to produce it, forms a `recipient_record`. The ephemeral key pair is discarded after wrapping; a distinct ephemeral key is generated per recipient key.
+
+**Step 3 — Assemble the envelope.** The encrypted payload and the set of recipient records are assembled into a single `encrypted_envelope`:
 
 ```
+recipient_record {
+    recipient_pubkey:     bytes[32]   // X25519 public key this record is wrapped for
+    ephemeral_pubkey:     bytes[32]   // ephemeral X25519 public key used for this wrapping
+    wrapped_cek:          bytes[32]   // AES-256-GCM ciphertext of the 256-bit CEK
+    wrap_aead_tag:        bytes[16]   // GCM authentication tag for the CEK wrapping
+    wrap_nonce:           bytes[12]   // 96-bit random nonce for the CEK wrapping
+}
+
 encrypted_envelope {
     version:              uint32
-    message_id:           bytes[16]      // matches plaintext_message.message_id
-    recipient_pubkey:     bytes[32]      // X25519 public key of intended recipient
-    ephemeral_pubkey:     bytes[32]      // ephemeral X25519 public key
-    encrypted_payload:    bytes          // AES-256-GCM ciphertext of signed_message
-    aead_tag:             bytes[16]      // GCM authentication tag
-    nonce:                bytes[12]      // 96-bit random nonce for AES-GCM
-    payload_size_class:   uint32         // padded size class (see Section 18.2.3)
+    message_id:           bytes[16]               // matches plaintext_message.message_id
+    recipients:           repeated recipient_record // one entry per enrolled device key
+    encrypted_payload:    bytes                    // AES-256-GCM ciphertext of signed_message
+    payload_aead_tag:     bytes[16]               // GCM authentication tag for the payload
+    payload_nonce:        bytes[12]               // 96-bit random nonce for payload encryption
+    payload_size_class:   uint32                  // padded size class (see Section 18.2.3)
     created_at:           uint64
 }
 ```
+
+**Decryption.** A recipient device locates the `recipient_record` whose `recipient_pubkey` matches its own device sub-key. It performs X25519 key exchange between its private sub-key and the `ephemeral_pubkey` in that record, derives the KWK via HKDF-SHA256, and uses it to unwrap the CEK. It then uses the CEK to decrypt the `encrypted_payload`. No other device's `recipient_record` is needed or accessed.
+
+**Wire overhead.** Each `recipient_record` is 108 bytes (32 + 32 + 32 + 16 + 12 + 4 bytes padding alignment). For a user with five enrolled devices, the total per-recipient overhead is 540 bytes — negligible relative to even a minimal message payload. The payload itself, regardless of size, is encrypted and transmitted exactly once.
 
 The `payload_size_class` field records the size bucket into which the payload has been padded (e.g. 1KB, 4KB, 16KB, 64KB, 256KB, 1MB), not the actual payload size. Relay nodes and passive observers can observe only the size class, not the precise message size.
 
 #### 15.3.4 Attachment Handling
 
-Attachments are encrypted separately from the message body using the same hybrid scheme, with a separate ephemeral key pair per attachment. The `attachment_record` in the `plaintext_message` contains the `content_hash` of the plaintext attachment for integrity verification after decryption, but the attachment content itself is stored as a separately addressed blob in the storage layer, referenced by `attachment_id`.
+Attachments use the same KEM pattern as the message envelope, but are encrypted and stored independently of it. Each attachment is encrypted with its own randomly generated CEK, and that CEK is wrapped for each recipient device sub-key exactly as in Section 15.3.3. The resulting `attachment_envelope` has the same `recipients` / `encrypted_payload` structure as the message envelope, with the attachment ciphertext as the payload.
 
-This separation allows large attachments to be stored and retrieved independently of the message envelope, reducing storage requirements at relay nodes that buffer messages for offline recipients.
+The `attachment_record` embedded in the `plaintext_message` contains the `content_hash` of the plaintext attachment for integrity verification after decryption, but the attachment ciphertext itself is stored as a separately addressed blob in the storage layer, referenced by `attachment_id`. This separation allows large attachments to be stored and retrieved independently of the message envelope, reducing storage requirements at relay nodes that buffer messages for offline recipients, and allowing recipients to defer download of large attachments until they choose to open them.
+
+Because each attachment has its own CEK, a recipient who receives a message with three attachments can decrypt the message body immediately using the message CEK, and decrypt each attachment independently as they open it — without re-fetching or re-processing the message envelope.
 
 ---
 

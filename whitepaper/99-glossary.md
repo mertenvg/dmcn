@@ -94,6 +94,11 @@ A matched pair of cryptographic keys — a public key and a private key — gene
 
 ---
 
+**Key Encapsulation Mechanism (KEM)**
+A cryptographic pattern in which a message payload is encrypted once with a randomly generated symmetric content key (CEK), and the CEK is then individually wrapped (encrypted) for each intended recipient using that recipient's public key. Any recipient who holds the corresponding private key can unwrap the CEK and decrypt the payload. The KEM pattern ensures that large payloads are transmitted exactly once regardless of how many recipients or enrolled devices are involved, with only small per-recipient overhead for the wrapped key material. The DMCN uses a KEM pattern for all message and attachment encryption (Section 15.3.3). The approach is standardised in RFC 9180 (HPKE).
+
+---
+
 **Mesh Network**
 A network topology in which each node can relay data for the network, with no single central hub through which all traffic must pass. Mesh networks are resilient — the failure of any individual node does not disrupt overall connectivity — and resistant to centralised censorship or surveillance. The DMCN uses a mesh routing topology for message delivery.
 

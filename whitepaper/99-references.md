@@ -46,6 +46,10 @@ https://www.rfc-editor.org/rfc/rfc5652
 Jones, M., Bradley, J., & Sakimura, N. (2015). *JSON Web Token (JWT)*. RFC 7519. Internet Engineering Task Force.
 https://www.rfc-editor.org/rfc/rfc7519
 
+**[RFC9180]**
+Barnes, R., Bhargavan, K., Lipp, B., & Wood, C. (2022). *Hybrid Public Key Encryption (HPKE)*. RFC 9180. Internet Engineering Task Force. (Standardises the KEM + KDF + AEAD pattern used in the DMCN encrypted envelope design.)
+https://www.rfc-editor.org/rfc/rfc9180
+
 ---
 
 ### Cryptographic Foundations

@@ -92,7 +92,7 @@ Each device on which the user activates their DMCN account generates its own **d
 
 Device sub-keys serve two functions. First, they are the keys actually used for per-message encryption and signing on that device — the primary key is not used for routine message operations, reducing its exposure. Second, they allow per-device revocation: if a device is lost, stolen, or decommissioned, only that device's sub-key need be revoked. The primary key, the identity's trust relationships, and all other active devices are unaffected.
 
-Sub-keys are registered in the identity registry as children of the primary key record and are returned alongside the primary key in registry lookups. Senders who wish to send to a multi-device user encrypt the message to each active device sub-key simultaneously, so that the recipient can decrypt on whichever device they first open the message.
+Sub-keys are registered in the identity registry as children of the primary key record and are returned alongside the primary key in registry lookups. When sending to a multi-device user, the message payload is encrypted exactly once using a single randomly generated symmetric content key. That content key is then individually wrapped (encrypted) for each active device sub-key. Any device that holds the corresponding private sub-key can unwrap the content key and decrypt the payload. This approach — a Key Encapsulation Mechanism (KEM) pattern — ensures that message and attachment payload bytes appear on the wire only once regardless of how many devices the recipient has enrolled, eliminating the per-recipient payload duplication that would otherwise result. The protocol structure for this is defined in Section 15.3.3.
 
 #### 7.5.3 Sub-Key Lifecycle
 
