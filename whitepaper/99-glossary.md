@@ -49,6 +49,16 @@ A policy framework built on top of SPF and DKIM that allows domain owners to spe
 
 ---
 
+**Domain Authority Record (DAR)**
+A signed registry entry published by a domain owner that declares the domain's administrative policy and the public key of the authority responsible for enforcing it. The DAR enables organisations to control which identities are authorised under their domain, provision and deprovision staff addresses, enforce compliance archiving, and delegate administrative authority to sub-administrators. Identity records under a managed domain carry a domain countersignature issued by the domain authority alongside the individual's own self-signature. See Section 13.
+
+---
+
+**Domain Countersignature**
+A cryptographic signature applied to an individual identity record by a domain authority, certifying that the address has been provisioned through the organisation's authorised process. Relay nodes and clients check for a valid domain countersignature when the domain's Domain Authority Record sets the `REQUIRE_DOMAIN_COUNTERSIG` policy flag. An identity record without a valid countersignature under a managed domain is treated as unverified regardless of the individual's own self-signature. The domain authority can withdraw the countersignature at any time through a domain revocation record, immediately depro­visioning the address. See Section 13.2 and Section 13.3.
+
+---
+
 **DNSBL (DNS-based Blocklist)**
 A system that publishes lists of IP addresses or domains known to be sources of spam or other abuse, in a format queryable via DNS. Mail servers use DNSBLs to reject or flag messages from listed senders. Well-known DNSBLs include those operated by Spamhaus and Barracuda. In the DMCN context, shared reputation feeds serve an analogous function but list cryptographic public keys rather than IP addresses.
 
@@ -111,6 +121,16 @@ A network architecture in which participants communicate directly with each othe
 
 **PKI (Public Key Infrastructure)**
 A framework for managing public-key cryptography at scale, typically involving certificate authorities (CAs) that issue signed certificates binding public keys to identities. S/MIME email encryption relies on PKI. PKI introduces centralisation — a compromised or malicious CA can issue fraudulent certificates — which the DMCN avoids through its decentralised identity registry.
+
+---
+
+**Primary Key**
+The canonical cryptographic key pair representing a DMCN identity. There is exactly one active primary key per address at any point in time. It is published in the identity registry, anchors the trust graph, and is the key against which whitelist bindings are made. The primary key is not used for routine per-message operations; that role is delegated to device sub-keys. See also: *Device Sub-Key*, *Key Pair*.
+
+---
+
+**Device Sub-Key**
+A subordinate key pair generated on a specific device and signed by the identity's primary key. Sub-keys are the keys used for day-to-day message signing and decryption on a given device. Multiple active sub-keys may exist simultaneously — one per enrolled device. A sub-key can be revoked independently when a device is lost, decommissioned, or rotated, without affecting the primary key or other devices. Senders encrypt messages to all active sub-keys so that the recipient can decrypt on whichever device they first open the message. See also: *Primary Key*, *Key Pair*.
 
 ---
 
@@ -185,3 +205,7 @@ In the DMCN trust model, the whitelist is the user's registry of confirmed trust
 
 
 ---
+
+
+---
+

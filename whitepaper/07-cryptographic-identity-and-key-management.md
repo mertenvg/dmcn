@@ -52,7 +52,7 @@ model established by passkeys and mobile device security:
 
 - Key backup is automatic and encrypted. Private keys are backed up using the device's existing encrypted cloud backup infrastructure (iCloud Keychain, Google Password Manager, or an equivalent DMCN-native encrypted key backup service).
 
-- Multi-device access is handled through secure key synchronization — a flow identical to the device migration process used by Signal.
+- Multi-device access is handled through the primary/sub-key model described in Section 7.5. Each device holds its own sub-key; the user's primary key is the stable identity anchor. Losing or replacing a device requires only revoking that device's sub-key, not the entire identity.
 
 - Account recovery is possible through a social recovery mechanism. Users designate trusted contacts who hold encrypted shards of a recovery key. A threshold of contacts (for example, 3 of 5) must participate to restore access.
 
@@ -74,4 +74,59 @@ QR code exchange in the mobile app.
 > cryptographic verification and through the voluntary web of
 > attestations that users build over time — exactly as trust is
 > established in the physical world.*
+
+
+### 7.5 Primary Keys and Device Sub-Keys
+
+The DMCN uses a two-level key hierarchy to separate the question of *who a user is* from the question of *which device they are currently using*. This distinction is essential for multi-device support, graceful key rotation, and per-device revocation without identity loss.
+
+#### 7.5.1 The Primary Key
+
+Each DMCN identity has exactly one **primary key pair** at any point in time. The primary key is the canonical representation of the identity: it is what appears in the identity registry, what the trust graph is anchored to, what whitelists are bound to, and what contacts see when they look up an address. The primary key's public half is the stable long-term identifier for the address.
+
+The primary key is generated on the user's first device at account creation and is backed up through the encrypted key backup infrastructure described in Section 7.3. It is never generated or held by any server or relay node.
+
+#### 7.5.2 Device Sub-Keys
+
+Each device on which the user activates their DMCN account generates its own **device sub-key pair** locally. The device sub-key is signed by the primary key, creating a cryptographically verifiable delegation: any party who trusts the primary key can verify that the sub-key is a legitimately authorised device for that identity.
+
+Device sub-keys serve two functions. First, they are the keys actually used for per-message encryption and signing on that device — the primary key is not used for routine message operations, reducing its exposure. Second, they allow per-device revocation: if a device is lost, stolen, or decommissioned, only that device's sub-key need be revoked. The primary key, the identity's trust relationships, and all other active devices are unaffected.
+
+Sub-keys are registered in the identity registry as children of the primary key record and are returned alongside the primary key in registry lookups. Senders who wish to send to a multi-device user encrypt the message to each active device sub-key simultaneously, so that the recipient can decrypt on whichever device they first open the message.
+
+#### 7.5.3 Sub-Key Lifecycle
+
+Sub-keys are created when a new device is activated and revoked when a device is decommissioned. Revocation is published to the identity registry and propagated through the same mechanism as primary key revocation. A revoked sub-key cannot be re-activated; a replacement device generates a new sub-key and re-registers it under the same primary key.
+
+Sub-keys carry an optional `expires_at` field, enabling organisations to enforce periodic rotation of device credentials — relevant in managed domain contexts where the domain authority (Section 13) may require regular key refresh as a compliance control.
+
+#### 7.5.4 Key Rotation
+
+Periodic rotation of the primary key — whether on a schedule, following a suspected compromise, or as a policy requirement — is handled by publishing a new primary key to the registry via the `UPDATE` operation (Section 15.2.4), signed by both the old and new primary keys to prove continuity of control. This dual-signature rotation triggers key-change notifications to all whitelisted contacts (Section 14.1.2), prompting them to re-verify before the whitelist binding is updated.
+
+All device sub-keys must be re-issued under the new primary key following a primary key rotation, as existing sub-key signatures reference the old primary key fingerprint.
+
+#### 7.5.5 Separation of Concerns
+
+The two-level hierarchy also supports an intentional use case: a user who wishes to maintain distinct cryptographic personas for different communication contexts — for example, a public-facing address for general correspondence and a private address for a trusted inner circle — can register these as separate DMCN identities, each with its own primary key and sub-key tree. This is architecturally identical to having two email addresses, with the added property that the separation is cryptographically enforced rather than merely conventional. The DMCN client can manage multiple identities within a single account interface, presenting them as distinct inboxes.
+
+
+The DMCN's identity model provides cryptographic certainty that a
+message came from the private key associated with a given public key.
+The system also provides a voluntary trust graph through which users can
+cross-sign each other's identities, creating a web of trust analogous
+to PGP's original model but with modern UX — implemented as a simple
+QR code exchange in the mobile app.
+
+
+> **Trust Without Central Authority**
+> *The DMCN does not require a central certificate authority to issue
+> or revoke identity credentials. Trust is established through direct
+> cryptographic verification and through the voluntary web of
+> attestations that users build over time — exactly as trust is
+> established in the physical world.*
+
+
+
+---
 

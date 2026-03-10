@@ -1,4 +1,4 @@
-## 18. Protocol Specification Outline
+## 15. Protocol Specification Outline
 
 This section provides a structured technical outline of the DMCN protocol. It is not a complete specification — a production-ready protocol specification would be published as a series of formal documents analogous to IETF RFCs — but it defines the principal data structures, message formats, and protocol flows with sufficient precision to guide prototype implementation and to invite technical critique.
 
@@ -9,7 +9,7 @@ The outline is organised into five layers: identity, addressing, message format,
 
 ---
 
-### 18.1 Encoding and Serialisation Conventions
+### 15.1 Encoding and Serialisation Conventions
 
 All DMCN protocol messages use Protocol Buffers (protobuf) version 3 as the canonical wire encoding, chosen for its compact binary representation, language-neutral schema definitions, and forward-compatibility properties. JSON representations of the same schemas are defined for debugging, human-readable export, and bridge protocol use.
 
@@ -17,15 +17,15 @@ All binary fields (keys, signatures, hashes, nonces) are encoded as raw bytes in
 
 All timestamps are Unix epoch seconds as a 64-bit unsigned integer.
 
-String fields use UTF-8 encoding. Address strings follow the `local@domain` format defined in Section 18.2.
+String fields use UTF-8 encoding. Address strings follow the `local@domain` format defined in Section 15.2.
 
 Protocol version negotiation uses a single `uint32 version` field present in all top-level message types. The current protocol version is `1`. Nodes must reject messages with version numbers they do not support and return a `VERSION_NOT_SUPPORTED` error code.
 
 ---
 
-### 18.2 Identity Layer
+### 15.2 Identity Layer
 
-#### 18.2.1 Key Pair Specification
+#### 15.2.1 Key Pair Specification
 
 Each DMCN identity is represented by an elliptic curve key pair using **Curve25519** for key exchange (X25519) and **Ed25519** for signatures. These two curves are mathematically related (both defined over the same field) and are used in combination throughout the Signal Protocol and modern TLS 1.3.
 
@@ -42,7 +42,7 @@ The private keys corresponding to `ed25519_public_key` and `x25519_public_key` n
 
 A **fingerprint** is defined as the first 20 bytes of the SHA-256 hash of the concatenation of `ed25519_public_key` and `x25519_public_key`, encoded as a 40-character uppercase hex string for display purposes (e.g. `A3F2...B901`). Fingerprints are used for out-of-band identity verification.
 
-#### 18.2.2 Identity Record
+#### 15.2.2 Identity Record
 
 An identity record is the unit of data published to the distributed identity registry. It binds a human-readable address to a key pair and is signed by the identity's own Ed25519 private key, making the binding self-certifying.
 
@@ -63,7 +63,7 @@ identity_record {
 
 The `self_signature` is computed over the canonical protobuf serialisation of all fields except `self_signature` itself. Any node receiving an identity record must verify this signature before storing or forwarding the record.
 
-#### 18.2.3 Attestation Record
+#### 15.2.3 Attestation Record
 
 An attestation is a signed statement by one identity vouching for another. Attestations are optional and may be published publicly or retained privately by the attesting party.
 
@@ -80,14 +80,14 @@ attestation_record {
 }
 ```
 
-#### 18.2.4 Identity Registry Operations
+#### 15.2.4 Identity Registry Operations
 
 The distributed identity registry exposes four operations:
 
 | Operation | Input | Output | Notes |
 |---|---|---|---|
 | `REGISTER` | `identity_record` | `ack` or `error` | Idempotent; re-registration updates the record if self-signature is valid |
-| `LOOKUP` | `address: string` | `identity_record` or `not_found` | Rate-limited per source; see Section 17.3.1 |
+| `LOOKUP` | `address: string` | `identity_record` or `not_found` | Rate-limited per source; see Section 18.3.1 |
 | `REVOKE` | `address`, `revocation_signature` | `ack` or `error` | Revocation is permanent; revoked keys cannot be re-registered |
 | `UPDATE` | `identity_record` | `ack` or `error` | For key rotation; triggers key-change notifications to whitelisted contacts |
 
@@ -95,11 +95,49 @@ Registry nodes maintain a Kademlia-style DHT keyed on the SHA-256 hash of the id
 
 **Key design consequence — address search is not supported.** Because registry entries are keyed on the SHA-256 hash of the address string, the DHT supports only exact-match lookups: a client must know the precise address `alice@example.com` in order to retrieve Alice's identity record. Prefix search, wildcard lookup, and domain-level enumeration (e.g. "all addresses at example.com") are not supported by the DHT structure, as hashing destroys address ordering and grouping. This is a deliberate design choice — it prevents bulk harvesting of registered identities — but it means that address discovery and autocomplete functionality must be implemented through a separate, opt-in directory service outside the core DHT. Clients that wish to offer contact search must either maintain a local address book populated through direct exchange, or query a supplementary directory operated by organisations that choose to publish their member addresses.
 
+#### 15.2.5 Device Sub-Key Record
+
+As described in Section 7.5, each device on which a user activates their DMCN account generates its own sub-key pair. Sub-keys are registered in the identity registry as children of the primary identity record and returned alongside it in `LOOKUP` responses.
+
+```
+device_subkey_record {
+    version:                uint32
+    primary_address:        string      // address of the owning identity
+    primary_ed25519_pubkey: bytes[32]   // Ed25519 public key of the primary identity
+    device_id:              bytes[16]   // random UUID identifying the device
+    device_label:           string      // optional human-readable label (e.g. "iPhone 15")
+    sub_ed25519_pubkey:     bytes[32]   // Ed25519 signing key for this device
+    sub_x25519_pubkey:      bytes[32]   // X25519 encryption key for this device
+    created_at:             uint64
+    expires_at:             uint64      // 0 = no expiry; positive = Unix timestamp
+    primary_signature:      bytes[64]   // Ed25519 signature by primary key over all preceding fields
+    device_self_signature:  bytes[64]   // Ed25519 signature by sub key over all preceding fields
+}
+```
+
+Both signatures must be present and valid for a sub-key record to be accepted by the registry. The `primary_signature` proves the sub-key is authorised by the identity owner. The `device_self_signature` proves the registering device holds the corresponding private key and prevents a primary-key holder from registering phantom sub-keys for devices they do not control.
+
+The `device_label` field is optional and intended solely for the user's own client UI — to allow them to identify and revoke specific devices by name. It is not used in any routing or trust decision and should not be relied upon by external parties.
+
+**Sub-key registry operations** extend the four base operations defined in Section 15.2.4:
+
+| Operation | Input | Output | Notes |
+|---|---|---|---|
+| `SUBKEY_REGISTER` | `device_subkey_record` | `ack` or `error` | Adds sub-key to the primary identity's sub-key set |
+| `SUBKEY_REVOKE` | `primary_address`, `device_id`, `revocation_signature` | `ack` or `error` | Revocation is permanent; signed by either primary key or the sub-key itself |
+| `SUBKEY_LIST` | `primary_address` | `repeated device_subkey_record` or `not_found` | Returns all active sub-keys; included in `LOOKUP` response |
+
+`SUBKEY_REVOKE` may be signed by the primary key (owner-initiated, e.g. for a lost device) or by the sub-key itself (device-initiated, e.g. on a clean logout or decommission). Both are valid. A primary-key-signed revocation takes effect immediately; a sub-key-signed revocation is also immediate but additionally signals to contacts that the device performed a clean deactivation rather than being forcibly removed.
+
+**Encryption to multiple sub-keys.** When a sender looks up a recipient who has multiple active sub-keys, the client encrypts the message independently to each active `sub_x25519_pubkey`. Each encrypted copy is addressed to its sub-key and delivered through the transport layer. Relay nodes and storage nodes treat each copy as a separate message and deliver them independently. The recipient's client on whichever device retrieves the message first decrypts its copy; the copies on other devices are retrieved when those devices next connect. This is the same multi-device delivery model used by the Signal protocol.
+
+**Interaction with the primary key.** The primary `identity_record` (Section 15.2.2) retains its own `x25519_public_key` field, which is used when the recipient has no active sub-keys registered — for example, immediately after account creation before any device sub-key has been issued, or during account recovery before a new device sub-key is established. Senders should prefer sub-keys when available and fall back to the primary key only when no active sub-keys are present.
+
 ---
 
-### 18.3 Message Format
+### 15.3 Message Format
 
-#### 18.3.1 Plaintext Message
+#### 15.3.1 Plaintext Message
 
 Before encryption, a DMCN message has the following structure:
 
@@ -129,11 +167,11 @@ attachment_record {
     content_type:     string
     size_bytes:       uint64
     content_hash:     bytes[32]      // SHA-256 of the plaintext attachment content
-    content:          bytes          // encrypted separately; see Section 18.3.3
+    content:          bytes          // encrypted separately; see Section 15.3.3
 }
 ```
 
-#### 18.3.2 Signed Message
+#### 15.3.2 Signed Message
 
 Before encryption, the plaintext message is signed by the sender's Ed25519 private key. The signature covers the canonical protobuf serialisation of the `plaintext_message`.
 
@@ -146,7 +184,7 @@ signed_message {
 
 Recipients must verify `sender_signature` after decryption. A message with an invalid or missing sender signature must be rejected and must not be displayed to the user.
 
-#### 18.3.3 Encrypted Envelope
+#### 15.3.3 Encrypted Envelope
 
 The `signed_message` is encrypted using a hybrid encryption scheme: an ephemeral X25519 key pair is generated for each message, a shared secret is derived via X25519 key exchange between the ephemeral private key and the recipient's `x25519_public_key`, and the shared secret is used to derive a symmetric key via HKDF-SHA256 for AES-256-GCM encryption of the message content.
 
@@ -159,14 +197,14 @@ encrypted_envelope {
     encrypted_payload:    bytes          // AES-256-GCM ciphertext of signed_message
     aead_tag:             bytes[16]      // GCM authentication tag
     nonce:                bytes[12]      // 96-bit random nonce for AES-GCM
-    payload_size_class:   uint32         // padded size class (see Section 17.2.3)
+    payload_size_class:   uint32         // padded size class (see Section 18.2.3)
     created_at:           uint64
 }
 ```
 
 The `payload_size_class` field records the size bucket into which the payload has been padded (e.g. 1KB, 4KB, 16KB, 64KB, 256KB, 1MB), not the actual payload size. Relay nodes and passive observers can observe only the size class, not the precise message size.
 
-#### 18.3.4 Attachment Handling
+#### 15.3.4 Attachment Handling
 
 Attachments are encrypted separately from the message body using the same hybrid scheme, with a separate ephemeral key pair per attachment. The `attachment_record` in the `plaintext_message` contains the `content_hash` of the plaintext attachment for integrity verification after decryption, but the attachment content itself is stored as a separately addressed blob in the storage layer, referenced by `attachment_id`.
 
@@ -174,9 +212,9 @@ This separation allows large attachments to be stored and retrieved independentl
 
 ---
 
-### 18.4 Transport Layer
+### 15.4 Transport Layer
 
-#### 18.4.1 Onion Routing Packet Format
+#### 15.4.1 Onion Routing Packet Format
 
 Messages in the DMCN transport layer are wrapped in an onion routing structure with a fixed number of layers (default: 3 hops). Each layer is encrypted to the relay node at that position in the route, and contains the routing instruction for that hop.
 
@@ -199,7 +237,7 @@ The sender constructs the onion packet by layering encryptions from the innermos
 
 Route selection is performed by the sender's client, which queries the identity registry for relay node candidates and selects a path based on geographic distribution, node reputation, and latency estimates. The route is not disclosed to relay nodes — each knows only its predecessor and successor.
 
-#### 18.4.2 Relay Node Protocol
+#### 15.4.2 Relay Node Protocol
 
 Relay nodes communicate over persistent TLS 1.3 connections using a simple request-response protocol. The primary relay node operations are:
 
@@ -214,9 +252,9 @@ Relay nodes communicate over persistent TLS 1.3 connections using a simple reque
 
 Relay nodes authenticate to each other and to clients using their registered DMCN identities. A relay node that presents an identity not found in the identity registry, or whose self-signature is invalid, must be rejected.
 
-#### 18.4.3 Flow Control and Rate Limiting
+#### 15.4.3 Flow Control and Rate Limiting
 
-Relay nodes implement per-sender rate limiting based on the sender's registered identity. New identities (registered within the past 30 days) are subject to stricter throughput limits than established identities, implementing the reputation bootstrapping behaviour described in Section 14.5.
+Relay nodes implement per-sender rate limiting based on the sender's registered identity. New identities (registered within the past 30 days) are subject to stricter throughput limits than established identities, implementing the reputation bootstrapping behaviour described in Section 17.5.
 
 Rate limits are expressed as:
 - Maximum messages per hour per sending identity: default 500 (new identity), 5000 (established)
@@ -225,46 +263,11 @@ Rate limits are expressed as:
 
 These defaults are configurable by relay node operators and represent recommended baseline values for the reference implementation.
 
-#### 18.4.4 Route Selection
-
-Route selection is a security-critical operation. A naive implementation that picks three relay nodes at random from the identity registry would provide substantially weaker anonymity than the protocol intends, because it would fail to prevent an adversary from placing colluding nodes at multiple positions in the same path. The client must apply the following constraints and weighting criteria when constructing a route.
-
-**Hard constraints — any path violating these must be rejected:**
-
-- No two nodes in the path may share the same registered operator identity.
-- No two nodes in the path may share the same /16 IPv4 subnet or /48 IPv6 prefix. This prevents two nodes hosted by the same provider from appearing in the same path even if registered under different identities.
-- No two nodes in the path may share the same Autonomous System Number (ASN), as determined from published BGP routing data. Nodes in the same ASN are under the administrative control of the same network operator and may share traffic visibility.
-- No node may appear more than once in the same path.
-- The exit node (R3) must have a current reputation score above the minimum threshold (default: 0) in the client's configured reputation feed. The exit node observes the recipient's relay address and represents the highest-trust position in the route.
-
-**Weighted selection criteria:**
-
-The client maintains a local relay node directory, refreshed from the identity registry on a configurable schedule (default: every 6 hours). Each node entry includes the metadata published in its `identity_record` plus locally cached measurements. Nodes are scored for selection using a weighted combination of:
-
-- **Reputation score** (weight: high) — drawn from the shared reputation feed. Nodes with long clean histories are preferred. Newly registered nodes (under 30 days) are down-weighted but not excluded.
-- **Latency estimate** (weight: medium) — derived from cached round-trip time measurements to the node, or from geographic proximity as a proxy when direct measurements are unavailable.
-- **Geographic region diversity** (weight: medium) — the three selected nodes should be in distinct geographic regions (different countries at minimum, different continental regions where possible) to maximise the number of distinct network vantage points an adversary would require to perform traffic correlation.
-- **Declared capacity** (weight: low) — nodes operating near capacity are down-weighted to distribute load across the relay network.
-
-**Position-specific considerations:**
-
-The entry node (R1) observes the sender's real IP address and is therefore the most sensitive position. Clients should maintain a small stable set of preferred entry nodes — analogous to Tor's guard node model — rotated infrequently (default: every 30 days) rather than selected fresh for each message. This prevents an adversary who operates many relay nodes from gaining a statistical probability of appearing at entry through repeated random selection over time.
-
-The middle node (R2) is the least sensitive position and may be selected with lower reputation requirements than entry or exit nodes.
-
-The exit node (R3) observes the recipient's relay address. It should be selected with the highest reputation weighting and should be in a different geographic region from both R1 and R2.
-
-**Route reuse and rotation:**
-
-A constructed route (circuit) is reused for a session window rather than reconstructed per message. The default session window is the duration of a single conversation thread or 10 minutes of inactivity, whichever comes first. Route rotation on a fixed time interval (default: 10 minutes of active use) limits the duration over which a compromised relay node can observe traffic from a given sender. Route reconstruction incurs latency overhead and should not occur more frequently than necessary.
-
-**Open question:** The optimal weighting algorithm for balancing latency, geographic diversity, and reputation in the DMCN's specific threat model requires empirical validation through prototype deployment. The values above are initial recommendations; they should be treated as configurable parameters subject to revision through the community review process described in Section 18.7. See also Section 15.6.
-
 ---
 
-### 18.5 Storage and Delivery Layer
+### 15.5 Storage and Delivery Layer
 
-#### 18.5.1 Message Store
+#### 15.5.1 Message Store
 
 Relay nodes providing storage services maintain an encrypted message store indexed by recipient public key. The store is content-addressed: each stored item is identified by the SHA-256 hash of its `encrypted_envelope`, allowing deduplication across relay nodes that may both receive the same message.
 
@@ -281,13 +284,13 @@ stored_message_record {
 
 The `encrypted_envelope` itself is stored as an opaque blob. Relay nodes cannot read its contents.
 
-#### 18.5.2 Recipient Fetch Protocol
+#### 15.5.2 Recipient Fetch Protocol
 
 When a recipient client connects to retrieve messages, it authenticates by signing a challenge nonce with its Ed25519 private key. The relay node verifies the signature against the identity registry and returns all `stored_message_record` headers for messages addressed to that identity. The client then fetches the full `encrypted_envelope` for each message it wishes to retrieve.
 
 This two-phase fetch (headers first, then content on demand) allows clients to make informed decisions about large attachments before downloading, and supports efficient operation on constrained network connections.
 
-#### 18.5.3 Delivery Receipts
+#### 15.5.3 Delivery Receipts
 
 The DMCN supports optional end-to-end delivery receipts. When the recipient client successfully decrypts and verifies a message, it may send a signed receipt back to the sender through the transport layer.
 
@@ -304,11 +307,11 @@ Delivery receipts are encrypted to the sender's public key and routed through th
 
 ---
 
-### 18.6 Bridge Protocol Interface
+### 15.6 Bridge Protocol Interface
 
 The SMTP-DMCN Bridge Operator Protocol (BOP) defines the interface between bridge nodes and the core DMCN network. Bridge nodes are registered DMCN identities with an additional `bridge_capability` flag set in their identity record.
 
-#### 18.6.1 Outbound Bridge Message
+#### 15.6.1 Outbound Bridge Message
 
 When a DMCN client sends a message to a legacy email address, the encrypted envelope is addressed to the bridge node's public key rather than a recipient public key. The bridge node decrypts, reconstructs the SMTP message, and delivers it. The bridge attaches a standardised footer and DKIM-signs the outbound SMTP message using its registered domain key.
 
@@ -320,7 +323,7 @@ The outbound bridge flow is:
 5. Bridge node delivers via standard SMTP with DKIM signing
 6. Bridge node sends a signed `bridge_delivery_receipt` back to sender
 
-#### 18.6.2 Inbound Bridge Classification Record
+#### 15.6.2 Inbound Bridge Classification Record
 
 For inbound messages from SMTP senders, the bridge node wraps the classified message in a DMCN envelope and attaches a signed classification record:
 
@@ -344,7 +347,7 @@ Recipients can verify the `bridge_signature` to confirm the classification was p
 
 ---
 
-### 18.7 Protocol Extension Mechanism
+### 15.7 Protocol Extension Mechanism
 
 The DMCN protocol is designed to be extensible without breaking backward compatibility. Each top-level message type includes a `repeated extension_field extensions` field using protobuf's extension mechanism. Nodes that do not understand a given extension field must ignore it and must not reject the message on that basis.
 
@@ -355,3 +358,7 @@ Planned first-generation extensions include: group messaging (multi-recipient en
 
 
 ---
+
+
+---
+

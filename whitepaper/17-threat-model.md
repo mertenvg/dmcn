@@ -1,4 +1,4 @@
-## 14. Threat Model
+## 17. Threat Model
 
 
 This section provides a structured analysis of the threat landscape
@@ -18,10 +18,10 @@ improves, maintains, or introduces new risk relative to the status quo.
 > attackers, and state-level actors.*
 
 
-### 14.1 Threat Category 1: Spam and Bulk Unsolicited Messaging
+### 17.1 Threat Category 1: Spam and Bulk Unsolicited Messaging
 
 
-#### 14.1.1 Nature of the Threat
+#### 17.1.1 Nature of the Threat
 
 
 Spam is the dominant form of abuse in the current email ecosystem. A
@@ -32,7 +32,7 @@ conversion rate of a fraction of a percent, the near-zero marginal cost
 of sending email makes spam campaigns profitable.
 
 
-#### 14.1.2 How SMTP Enables This Threat
+#### 17.1.2 How SMTP Enables This Threat
 
 
 SMTP imposes no cost and no identity requirement on senders. Any actor
@@ -53,7 +53,7 @@ pass all verification checks.
 - Blocklisting based on IP or domain is easily circumvented by rotating infrastructure
 
 
-#### 14.1.3 How DMCN Changes the Threat Surface
+#### 17.1.3 How DMCN Changes the Threat Surface
 
 
 The DMCN eliminates the conditions that make spam economically viable at
@@ -72,14 +72,14 @@ cost shifts the economics of spam from profitable to uneconomical at
 scale.
 
 
-#### 14.1.4 Residual Risk and Honest Limitations
+#### 17.1.4 Residual Risk and Honest Limitations
 
 
 The DMCN does not make spam creation infinitely expensive — it makes
 it non-zero in cost and permanently cumulative in consequence. A
 determined, well-resourced spam operation could potentially automate the
 account creation process (a Sybil attack), creating large numbers of
-identities before they are reported. Section 14.5 addresses Sybil
+identities before they are reported. Section 17.5 addresses Sybil
 resistance specifically. The consent-based inbox model (Section 8.2) provides a secondary layer: even a registered
 identity cannot reach a user's primary inbox without meeting one of the
 whitelisting criteria.
@@ -91,10 +91,10 @@ whitelisting criteria.
 > and requires robust account creation friction to fully close.*
 
 
-### 14.2 Threat Category 2: Phishing and Identity Spoofing
+### 17.2 Threat Category 2: Phishing and Identity Spoofing
 
 
-#### 14.2.1 Nature of the Threat
+#### 17.2.1 Nature of the Threat
 
 
 Phishing attacks exploit the inability of email recipients to reliably
@@ -107,7 +107,7 @@ authorise fraudulent wire transfers. BEC alone causes billions of
 dollars in losses annually.
 
 
-#### 14.2.2 How SMTP Enables This Threat
+#### 17.2.2 How SMTP Enables This Threat
 
 
 Sender identity in SMTP is determined by the From header field, which is
@@ -128,7 +128,7 @@ field, which is trivially forged or manipulated.
 - No mechanism for the recipient to verify the message was written by a known human contact
 
 
-#### 14.2.3 How DMCN Changes the Threat Surface
+#### 17.2.3 How DMCN Changes the Threat Surface
 
 
 In the DMCN, every message carries a cryptographic signature tied to the
@@ -148,7 +148,7 @@ explicitly trusted — which requires the attacker to have established a
 prior trust relationship.
 
 
-#### 14.2.4 Account Compromise and the Key Binding Problem
+#### 17.2.4 Account Compromise and the Key Binding Problem
 
 
 The DMCN does not eliminate the threat of account compromise — it
@@ -164,7 +164,7 @@ This represents a meaningful improvement over SMTP account compromise,
 but it introduces a new concern: if a private key is stolen (e.g., from
 a device without hardware security support), the attacker gains the full
 trust relationships of that identity with no visible indicator to
-contacts. The whitelist key-change notification system (Section 13.1.2)
+contacts. The whitelist key-change notification system (Section 14.1.2)
 partially mitigates this: if the attacker uses a new device, contacts
 will be alerted that the key has changed and prompted to re-verify.
 
@@ -176,10 +176,10 @@ will be alerted that the key has changed and prompted to re-verify.
 > essential for this property to hold.*
 
 
-### 14.3 Threat Category 3: Infrastructure Attacks
+### 17.3 Threat Category 3: Infrastructure Attacks
 
 
-#### 14.3.1 Denial of Service Against the Network
+#### 17.3.1 Denial of Service Against the Network
 
 
 Any distributed network is a potential target for denial-of-service
@@ -189,7 +189,7 @@ such an attack is to prevent message delivery, disrupt identity lookups,
 or degrade the network to the point of unusability.
 
 
-#### 14.3.2 Comparison with SMTP
+#### 17.3.2 Comparison with SMTP
 
 
 SMTP email infrastructure is frequently the target of distributed
@@ -207,7 +207,7 @@ must simultaneously target a significant fraction of all relay nodes ---
 a substantially harder target than attacking a centralised mail server.
 
 
-#### 14.3.3 New Infrastructure Risks Introduced by DMCN
+#### 17.3.3 New Infrastructure Risks Introduced by DMCN
 
 
 The distributed identity registry represents a novel attack surface with
@@ -236,10 +236,10 @@ single-point-of-failure risk.
 > centralisation risk during the transition period.*
 
 
-### 14.4 Threat Category 4: Relay Node Misbehaviour
+### 17.4 Threat Category 4: Relay Node Misbehaviour
 
 
-#### 14.4.1 Nature of the Threat
+#### 17.4.1 Nature of the Threat
 
 
 Unlike centralised email providers, DMCN relay nodes can be operated by
@@ -250,7 +250,7 @@ though content is encrypted), injecting false routing information, or
 colluding with other nodes to deanonymise communication patterns.
 
 
-#### 14.4.2 Comparison with SMTP
+#### 17.4.2 Comparison with SMTP
 
 
 In the existing email ecosystem, routing trust is placed in a chain of
@@ -270,7 +270,7 @@ over SMTP, where message content is accessible to routing
 infrastructure.
 
 
-#### 14.4.3 Metadata Privacy and the Onion Routing Layer
+#### 17.4.3 Metadata Privacy and the Onion Routing Layer
 
 
 The proposed onion-routing-inspired transport protocol (Section 6.2.2)
@@ -298,10 +298,10 @@ beyond the realistic adversary.
 > for high-sensitivity use cases.*
 
 
-### 14.5 Threat Category 5: Sybil Attacks
+### 17.5 Threat Category 5: Sybil Attacks
 
 
-#### 14.5.1 Nature of the Threat
+#### 17.5.1 Nature of the Threat
 
 
 A Sybil attack occurs when a malicious actor creates a large number of
@@ -313,7 +313,7 @@ malicious identity; and creating fake identities to manipulate shared
 reputation feeds.
 
 
-#### 14.5.2 Comparison with SMTP
+#### 17.5.2 Comparison with SMTP
 
 
 SMTP is essentially infinitely susceptible to Sybil attacks — there is
@@ -325,7 +325,7 @@ DMCN is not immune, and Sybil resistance is one of the most significant
 open design challenges.
 
 
-#### 14.5.3 Proposed Mitigations
+#### 17.5.3 Proposed Mitigations
 
 
 Several mechanisms can be combined to raise the cost of Sybil attacks to
@@ -348,10 +348,10 @@ uneconomical levels:
 > and accessibility that requires user research and iteration.*
 
 
-### 14.6 Threat Category 6: State-Level Surveillance and Censorship
+### 17.6 Threat Category 6: State-Level Surveillance and Censorship
 
 
-#### 14.6.1 Nature of the Threat
+#### 17.6.1 Nature of the Threat
 
 
 Nation-state actors represent the most sophisticated and well-resourced
@@ -362,7 +362,7 @@ parties, or disruption of communication infrastructure for geopolitical
 purposes.
 
 
-#### 14.6.2 How SMTP Enables State Surveillance
+#### 17.6.2 How SMTP Enables State Surveillance
 
 
 SMTP email is extraordinarily accessible to state surveillance. In most
@@ -381,7 +381,7 @@ particularly for messages between providers that do not enforce
 opportunistic TLS.
 
 
-#### 14.6.3 How DMCN Changes the Threat Surface
+#### 17.6.3 How DMCN Changes the Threat Surface
 
 
 The DMCN substantially increases the difficulty and cost of mass
@@ -402,7 +402,7 @@ traffic correlation attacks. The DMCN's pseudonymous identity model
 not equivalent to anonymity.
 
 
-#### 14.6.4 Censorship and Network Disruption
+#### 17.6.4 Censorship and Network Disruption
 
 
 A state that wishes to prevent DMCN communication within its
@@ -432,10 +432,10 @@ targeted for censorship or legal compulsion.
 > interception. Bridge nodes represent a transitional vulnerability.*
 
 
-### 14.7 Threat Category 7: Key Compromise and Recovery Attacks
+### 17.7 Threat Category 7: Key Compromise and Recovery Attacks
 
 
-#### 14.7.1 Nature of the Threat
+#### 17.7.1 Nature of the Threat
 
 
 The security of the entire DMCN identity model rests on the secrecy of
@@ -447,7 +447,7 @@ the most serious category of attack specific to a cryptographic identity
 system.
 
 
-#### 14.7.2 Comparison with SMTP
+#### 17.7.2 Comparison with SMTP
 
 
 SMTP account security is typically based on password authentication.
@@ -468,7 +468,7 @@ key compromise that does occur are more severe: there is no centralised
 provider who can reset an account.
 
 
-#### 14.7.3 The Social Recovery Attack Surface
+#### 17.7.3 The Social Recovery Attack Surface
 
 
 The social recovery mechanism (Section 7.3) — in which trusted
@@ -487,7 +487,7 @@ limiting the recovery mechanism to account access restoration rather
 than providing a path to re-issue the underlying key pair.
 
 
-#### 14.7.4 Key Revocation and Forward Secrecy
+#### 17.7.4 Key Revocation and Forward Secrecy
 
 
 The whitepaper's current architecture does not fully specify key
@@ -510,10 +510,10 @@ conversation.
 > production deployment.*
 
 
-### 14.8 Threat Category 8: Bridge Node Attacks
+### 17.8 Threat Category 8: Bridge Node Attacks
 
 
-#### 14.8.1 Nature of the Threat
+#### 17.8.1 Nature of the Threat
 
 
 The SMTP-DMCN bridge architecture (Section 10) is a necessary component
@@ -525,7 +525,7 @@ trust determinations about SMTP senders that have no direct equivalent
 in the native protocol.
 
 
-#### 14.8.2 Bridge-Specific Attack Vectors
+#### 17.8.2 Bridge-Specific Attack Vectors
 
 
 The following attacks are specific to the bridge architecture and have
@@ -540,7 +540,7 @@ no equivalent in the native DMCN:
 - Bridge impersonation: an attacker could operate a bridge that presents itself as trustworthy in the identity registry but maliciously handles messages. Mitigated by requiring bridge operators to publish their security practices and undergo periodic audits.
 
 
-#### 14.8.3 Bridge Risk as a Transitional Concern
+#### 17.8.3 Bridge Risk as a Transitional Concern
 
 
 It is important to contextualise bridge risks appropriately. Bridge
@@ -560,7 +560,7 @@ transitional mechanism, not a permanent feature.
 > architectural weakness.*
 
 
-### 14.9 Threat Model Summary
+### 17.9 Threat Model Summary
 
 
 The table below summarises each threat category, the current severity in
@@ -624,5 +624,10 @@ SMTP, the treatment under DMCN, and the net outcome for each:
 > challenges with known mitigation approaches, rather than fundamental
 > architectural flaws. None of these residual risks represents a
 > regression relative to the current SMTP-based email ecosystem.*
+>
+> *Organisations deploying the Domain Authority Record model (Section 13) introduce an additional threat surface: compromise of the domain authority key. This threat is analogous to enterprise CA root key compromise and should be treated with equivalent operational rigour. Mitigations are specified in Section 13.7.*
+
+---
+
 
 ---

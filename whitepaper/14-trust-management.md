@@ -1,4 +1,4 @@
-## 13. Trust Management: Whitelists, Greylists, and Blacklists
+## 14. Trust Management: Whitelists, Greylists, and Blacklists
 
 
 Cryptographic identity verification is the foundation of the DMCN's
@@ -19,7 +19,7 @@ managed are cryptographic and persistent rather than superficial and
 easily spoofed.
 
 
-### 13.1 The Whitelist: Confirmed Trusted Senders
+### 14.1 The Whitelist: Confirmed Trusted Senders
 
 
 The whitelist is the user's registry of confirmed trusted contacts. It
@@ -31,7 +31,7 @@ confirmed the contact's identity — which is surfaced in the client UI
 to help users understand the strength of each trust relationship.
 
 
-#### 13.1.1 Trust Establishment Mechanisms
+#### 14.1.1 Trust Establishment Mechanisms
 
 
 The DMCN supports multiple mechanisms for adding a contact to the
@@ -54,7 +54,7 @@ Approved, and the client communicates this distinction without requiring
 the user to understand the underlying cryptography.
 
 
-#### 13.1.2 Key Binding and Update Handling
+#### 14.1.2 Key Binding and Update Handling
 
 
 Because whitelist entries are bound to specific public keys rather than
@@ -72,6 +72,8 @@ the relationship. This prevents a class of attack in which an adversary
 replaces a contact's key in the identity registry and silently
 intercepts subsequent communication.
 
+The same notification mechanism fires when a contact's address is deprovisioned by a domain authority — for example, when an employee leaves an organisation and their `@company.com` identity is revoked. Contacts who had that address whitelisted are alerted that the identity is no longer active and are prompted to re-verify before sending further messages. The domain authority revocation model that triggers this behaviour is specified in Section 13.3.
+
 
 > **Key Change Alert**
 > *When a whitelisted contact's public key changes, the DMCN client
@@ -81,7 +83,7 @@ intercepts subsequent communication.
 > correct response to a high-assurance security event.*
 
 
-#### 13.1.3 Whitelist Portability and Backup
+#### 14.1.3 Whitelist Portability and Backup
 
 
 The whitelist is an asset of significant personal value — it
@@ -94,7 +96,7 @@ entry, so that the history of how trust was established is preserved
 across migrations.
 
 
-### 13.2 The Greylist: Unknown but Unblocked Senders
+### 14.2 The Greylist: Unknown but Unblocked Senders
 
 
 The greylist occupies the space between explicit trust and explicit
@@ -104,7 +106,7 @@ cryptographic sense, meaning their signature is valid and their identity
 is registered, but not yet confirmed as trusted by the user.
 
 
-#### 13.2.1 Greylist Delivery Semantics
+#### 14.2.1 Greylist Delivery Semantics
 
 
 Messages arriving from greylist senders are held in a pending queue,
@@ -124,7 +126,7 @@ message without any notification to the sender), or Reject and blacklist
 prevent future delivery attempts).
 
 
-#### 13.2.2 Greylist Auto-Resolution Rules
+#### 14.2.2 Greylist Auto-Resolution Rules
 
 
 To reduce the burden of manual greylist management, the client supports
@@ -146,7 +148,7 @@ automated experience can enable conservative defaults that handle the
 common cases without requiring intervention.
 
 
-### 13.3 The Blacklist: Blocking Known Bad Actors
+### 14.3 The Blacklist: Blocking Known Bad Actors
 
 
 The blacklist is the user's registry of explicitly rejected senders.
@@ -159,7 +161,7 @@ stronger guarantee than any blocking mechanism available in legacy
 email.
 
 
-#### 13.3.1 Personal Blacklist
+#### 14.3.1 Personal Blacklist
 
 
 The personal blacklist is private to the user and is never shared
@@ -178,7 +180,7 @@ block. This note is stored encrypted with the user's private key and is
 never transmitted.
 
 
-#### 13.3.2 Shared Reputation Feeds
+#### 14.3.2 Shared Reputation Feeds
 
 
 Beyond the personal blacklist, the DMCN supports an opt-in shared
@@ -199,7 +201,7 @@ limits Sybil attacks. This asymmetry fundamentally favours the
 defenders.
 
 
-#### 13.3.3 Reputation Feed Architecture
+#### 14.3.3 Reputation Feed Architecture
 
 
 Shared reputation feeds are operated independently of the DMCN core
@@ -219,7 +221,7 @@ process, and their removal policy — users choose feeds whose policies
 align with their needs.
 
 
-#### 13.3.4 Reporting and Feed Contribution
+#### 14.3.4 Reporting and Feed Contribution
 
 
 Any user can submit a report against a sender's public key to a feed
@@ -239,7 +241,7 @@ operators whose threshold policies match their tolerance for false
 positives versus false negatives.
 
 
-#### 13.3.5 The Persistence Advantage
+#### 14.3.5 The Persistence Advantage
 
 
 The most significant property of a cryptographic blacklist relative to
@@ -269,7 +271,7 @@ from profitable to unprofitable.
 > model collapses.*
 
 
-### 13.4 Trust Tier Interaction Summary
+### 14.4 Trust Tier Interaction Summary
 
 
   ------------- -------------------- --------------- -------------- ----------------
@@ -292,5 +294,8 @@ from profitable to unprofitable.
   Reputation    bad actor            feed policy     persistent     community opt-in
   Feed                                               listing        
   ------------- -------------------- --------------- -------------- ----------------
+
+---
+
 
 ---

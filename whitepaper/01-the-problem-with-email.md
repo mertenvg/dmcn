@@ -80,3 +80,6 @@ a fundamentally trust-less protocol. They reduce spam volumes in
 practice, but they cannot eliminate spam in principle, because they do
 not address sender identity at the protocol level.
 
+
+
+---

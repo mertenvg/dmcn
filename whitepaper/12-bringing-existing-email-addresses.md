@@ -82,6 +82,8 @@ depend on the policies of any email provider, and they are resistant to
 account suspension or provider-side interference. For organizations,
 this is the recommended verification path.
 
+Domain ownership verification establishes *that* an organisation controls a domain. It does not address *how* the organisation governs which addresses are authorised under that domain, or how it provisions and deprovisions staff identities. Those operational requirements are addressed by the Domain Authority Record model in Section 13.
+
 
 #### 12.2.3 DANE-Style Cryptographic Domain Binding
 
@@ -180,3 +182,8 @@ precedents in both identity verification and email infrastructure:
 
 - Number portability in mobile telephony — the telecommunications industry solved an analogous problem when it allowed consumers to bring their phone numbers between carriers. The lesson from that transition is directly applicable: portability dramatically lowers switching costs and accelerates adoption of superior infrastructure.
 
+Address portability answers the question of how an existing address enters the DMCN identity layer. For organisations deploying DMCN across a workforce, a further layer is required: ongoing governance of who is authorised to operate under the domain, how new addresses are provisioned, and how access is revoked when people leave. This organisational layer is specified in Section 13.
+
+
+
+---

@@ -56,3 +56,6 @@ the sender's domain. Messages from unknown senders appear in a separate
 pending section. A simple trust indicator shows whether a contact's
 identity has been verified by mutual connections in the user's network.
 
+
+
+---

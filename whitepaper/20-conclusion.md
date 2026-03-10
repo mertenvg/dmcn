@@ -1,4 +1,4 @@
-## 16. Conclusion
+## 20. Conclusion
 
 
 Email is the foundational communication layer of the digital world, and
@@ -35,7 +35,7 @@ problem.
 
 The DMCN is not proposed as a finished design — it is proposed as a
 research agenda and a design direction. The open challenges documented
-in Section 15 are real and significant. The competitive landscape
+in Section 19 are real and significant. The competitive landscape
 documented in Section 4 demonstrates that the market is beginning to
 recognize the problem space, even if existing solutions have not yet
 solved it effectively.
@@ -57,5 +57,8 @@ DMCN is a proposal toward that solution.
 ---
 
 *End of Document*
+
+---
+
 
 ---

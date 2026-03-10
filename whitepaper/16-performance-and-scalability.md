@@ -1,4 +1,4 @@
-## 19. Performance and Scalability Analysis
+## 16. Performance and Scalability Analysis
 
 This section provides quantitative estimates of the DMCN's performance and scalability characteristics under realistic operating conditions. The estimates are derived from first-principles analysis of the proposed architecture, benchmarks of comparable systems, and published performance data for the cryptographic primitives involved. They are presented with explicit assumptions and uncertainty ranges, not as guaranteed specifications.
 
@@ -9,7 +9,7 @@ The purpose of this analysis is twofold: to demonstrate that the proposed archit
 
 ---
 
-### 19.1 Scale Targets
+### 16.1 Scale Targets
 
 The DMCN must be capable of supporting global email-scale usage to be a credible replacement for SMTP. The following figures define the scale targets against which the architecture is assessed:
 
@@ -26,7 +26,7 @@ The Year 5 target represents a realistic early-adoption scenario — comparable 
 
 ---
 
-### 19.2 Cryptographic Operation Latency
+### 16.2 Cryptographic Operation Latency
 
 Every message in the DMCN requires a fixed set of cryptographic operations at the sender, at each relay node, and at the recipient. The latency contribution of these operations is the irreducible floor below which no optimisation can reduce message latency.
 
@@ -49,11 +49,11 @@ Cryptographic latency is negligible relative to network latency for typical inte
 
 ---
 
-### 19.3 Identity Registry Performance
+### 16.3 Identity Registry Performance
 
 The identity registry is the component most likely to be a bottleneck at global scale, because every new message to an unknown recipient requires a registry lookup, and the registry must support consistent reads across a globally distributed DHT.
 
-#### 19.3.1 Lookup Latency
+#### 16.3.1 Lookup Latency
 
 A Kademlia DHT with N nodes converges in O(log₂ N) hops. For a registry with 100 million entries distributed across 100,000 nodes:
 
@@ -69,7 +69,7 @@ This is the worst case. In practice, two factors reduce effective lookup latency
 
 **Effective average lookup latency estimate: 30–100ms** accounting for realistic cache hit rates.
 
-#### 19.3.2 Registry Throughput
+#### 16.3.2 Registry Throughput
 
 A single DHT node handling registry lookups must process:
 
@@ -81,7 +81,7 @@ For a 100,000-node registry with uniform load distribution and 500 million regis
 
 This is well within the throughput capacity of modern server hardware. Kademlia DHT implementations routinely handle thousands of operations per second per node. Registry throughput is **not a scalability bottleneck** under the target load.
 
-#### 19.3.3 Registry Storage
+#### 16.3.3 Registry Storage
 
 Each identity record is approximately 500 bytes (public keys, address string, metadata, signature). For 500 million registered identities:
 
@@ -92,9 +92,9 @@ This is negligible. Even with 10× replication for reliability, the per-node sto
 
 ---
 
-### 19.4 Message Relay Throughput
+### 16.4 Message Relay Throughput
 
-#### 19.4.1 Per-Node Throughput
+#### 16.4.1 Per-Node Throughput
 
 A relay node's primary work per message is:
 
@@ -111,13 +111,13 @@ In practice, relay nodes will not be uniformly loaded. A network of 10,000 relay
 
 **Relay throughput is not a scalability bottleneck** at Year 5 target scale.
 
-#### 19.4.2 End-to-End Message Latency
+#### 16.4.2 End-to-End Message Latency
 
 The end-to-end latency for a DMCN message from send to delivery for an online recipient is the sum of:
 
 | Component | Estimate | Notes |
 |---|---|---|
-| Sender cryptographic operations | ~200 µs | See Section 19.2 |
+| Sender cryptographic operations | ~200 µs | See Section 16.2 |
 | Hop 1 network latency | 20–100ms | Sender to first relay node |
 | Hop 1 relay processing | ~60 µs | Signature verify + route |
 | Hop 2 network latency | 20–100ms | Relay to relay |
@@ -134,9 +134,9 @@ This latency profile is **comparable to existing encrypted messaging systems** (
 
 ---
 
-### 19.5 Storage Requirements
+### 16.5 Storage Requirements
 
-#### 19.5.1 Relay Node Message Storage
+#### 16.5.1 Relay Node Message Storage
 
 Relay nodes buffer messages for offline recipients until they are fetched or until the retention period expires (default: 30 days). The storage requirement per relay node depends on the number of users served and their average message volume.
 
@@ -147,31 +147,31 @@ Assumptions:
 
 This is a substantial but entirely manageable storage requirement for a dedicated server. Consumer NVMe storage at 750GB costs under $100; cloud object storage at equivalent capacity is approximately $15/month at current prices. Relay node operators serving larger user populations will need proportionally more storage, but the per-user cost remains low.
 
-#### 19.5.2 Client Storage
+#### 16.5.2 Client Storage
 
 Client-side message storage is bounded by the user's device storage and retention preferences. The DMCN client should implement configurable local retention with automatic archival to encrypted cloud backup, consistent with the behaviour of modern email clients.
 
 ---
 
-### 19.6 Network Bandwidth
+### 16.6 Network Bandwidth
 
-#### 19.6.1 Onion Routing Overhead
+#### 16.6.1 Onion Routing Overhead
 
 Each message traverses 3 relay hops rather than the 1–2 hops typical in SMTP delivery. The bandwidth cost of each additional hop is one additional transmission of the encrypted message across the network. For a 50KB message traversing 3 hops, the total network bandwidth consumed is approximately **150KB** (3 × 50KB), compared to approximately **50–100KB** for a typical SMTP delivery.
 
-The onion routing overhead therefore increases total network bandwidth consumption by approximately **1.5–3×** relative to direct delivery. This is the privacy cost of the onion routing layer and is the correct trade-off given the privacy benefits described in Section 17.2.
+The onion routing overhead therefore increases total network bandwidth consumption by approximately **1.5–3×** relative to direct delivery. This is the privacy cost of the onion routing layer and is the correct trade-off given the privacy benefits described in Section 18.2.
 
 At Year 5 target scale (50 billion messages/day at 50KB each with 3× onion overhead), the total daily network bandwidth consumption of the DMCN is approximately **7.5 petabytes/day**. This is a large but entirely tractable figure — the global internet carries approximately **500 exabytes/day** of traffic, and global email traffic already accounts for a significant fraction of that.
 
-#### 19.6.2 Size Class Padding Overhead
+#### 16.6.2 Size Class Padding Overhead
 
-Message size class padding (Section 18.3.3) adds up to 3× overhead in the worst case (a 1KB message padded to the 4KB size class). For the average 50KB message, padding to the nearest size class (64KB) adds approximately 28% overhead. Across the full message volume, padding overhead is estimated at **15–30%** of total payload bandwidth.
+Message size class padding (Section 15.3.3) adds up to 3× overhead in the worst case (a 1KB message padded to the 4KB size class). For the average 50KB message, padding to the nearest size class (64KB) adds approximately 28% overhead. Across the full message volume, padding overhead is estimated at **15–30%** of total payload bandwidth.
 
-This is a worthwhile privacy cost: size normalisation substantially reduces the inferential value of traffic analysis as described in Section 17.2.3.
+This is a worthwhile privacy cost: size normalisation substantially reduces the inferential value of traffic analysis as described in Section 18.2.3.
 
 ---
 
-### 19.7 Scalability Bottleneck Summary
+### 16.7 Scalability Bottleneck Summary
 
 | Component | Bottleneck Risk | Assessment | Primary Mitigation |
 |---|---|---|---|
@@ -186,3 +186,9 @@ This is a worthwhile privacy cost: size normalisation substantially reduces the 
 
 The overall assessment is that the DMCN architecture is **viable at Year 5 adoption scale** without requiring novel infrastructure. The components that present the most engineering attention are identity registry lookup latency (addressed by caching strategy) and relay node storage management (addressed by retention policy and tiered storage). Neither represents a fundamental architectural obstacle.
 
+At full global-scale deployment (4 billion users, 350 billion messages/day), relay node storage and network bandwidth requirements increase by approximately two orders of magnitude and would require infrastructure investment comparable to that of a major cloud provider. This is a longer-horizon engineering challenge that the architecture supports in principle but that is explicitly deferred as outside the scope of the prototype phase.
+
+---
+
+
+---

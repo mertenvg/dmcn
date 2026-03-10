@@ -3,6 +3,7 @@
 
 ### 10.1 The Migration Problem
 
+
 No communication platform has ever achieved mainstream adoption by
 requiring users to abandon their existing communication infrastructure.
 The transition strategy for the DMCN is built on the principle of
@@ -14,6 +15,7 @@ levels during the transition period.
 
 ### 10.2 DMCN-to-DMCN Communication
 
+
 When both sender and recipient are on the DMCN, messages are fully
 encrypted, cryptographically signed, peer-to-peer routed, and spam-free
 by protocol. This is the target state of the system and the experience
@@ -21,6 +23,7 @@ that should be promoted as the default.
 
 
 ### 10.3 DMCN-to-Email Communication
+
 
 When a DMCN user sends a message to a legacy email address, the message
 passes through a gateway node that translates it to SMTP format for
@@ -32,6 +35,7 @@ sender identity remains verifiable at the gateway level.
 
 ### 10.4 Email-to-DMCN Communication
 
+
 Receiving a message from a legacy email sender requires a verified
 gateway address system, where legacy emails pass through a gateway that
 performs basic spam filtering and sender verification at the SMTP level
@@ -41,6 +45,7 @@ their DMCN client.
 
 
 ### 10.5 Progressive Migration Incentives
+
 
 The transition strategy includes mechanisms that actively incentivize
 migration to native DMCN communication: visible trust indicators that
@@ -61,3 +66,7 @@ The security properties of this model are meaningfully different from a server-s
 The local IMAP bridge does not affect the outbound path. Messages composed in the legacy mail client are intercepted by the bridge, signed with the user's private key, encrypted to the recipient's public key, and submitted to the DMCN transport layer — again transparently. For recipients on legacy email, the existing SMTP bridge handles delivery as normal.
 
 This mechanism allows an organisation to deploy DMCN for its entire user base without requiring any change to end-user mail clients, devices, or workflows. It is the most friction-free enterprise adoption path available and should be a priority deliverable in the initial implementation roadmap.
+
+
+
+---

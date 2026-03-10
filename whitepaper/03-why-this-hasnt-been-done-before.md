@@ -62,3 +62,6 @@ This is not an argument that the DMCN will succeed where others have failed. It 
 > *The right technical answer to the email identity problem has been known for thirty years. The barriers to implementation have been predominantly economic, social, and experiential rather than cryptographic. The conditions that sustained those barriers are weaker now than at any previous point. That is the case for attempting this now, stated plainly.*
 
 
+
+
+---

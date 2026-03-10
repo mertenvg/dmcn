@@ -89,3 +89,6 @@ A message in the DMCN follows this lifecycle:
 
 - The recipient's client verifies the sender's signature, confirming the message genuinely originated from the stated sender.
 
+
+
+---
