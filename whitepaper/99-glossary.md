@@ -5,7 +5,7 @@ Terms are listed alphabetically. Where a term has a common abbreviation used in 
 ---
 
 **Blocklist**
-A user-maintained or community-maintained registry of cryptographic identities that are explicitly blocked from delivering messages. In the DMCN, blocklist entries are bound to public keys rather than surface addresses, making them impossible to circumvent by simply creating a new address string. See also: *Greylist*, *Whitelist*, *Shared Reputation Feed*.
+A user-maintained or community-maintained registry of cryptographic identities that are explicitly blocked from delivering messages. In the DMCN, blocklist entries are bound to public keys rather than surface addresses, making them impossible to circumvent by simply creating a new address string. See also: *Pending Queue*, *Allowlist*, *Shared Reputation Feed*.
 
 ---
 
@@ -84,8 +84,8 @@ A cryptographic property whereby compromise of a long-term private key does not 
 
 ---
 
-**Greylist**
-In the DMCN trust model, the greylist is the holding area for messages from senders who are cryptographically verified (their identity is registered and their message signature is valid) but not yet explicitly trusted by the recipient. Greylisted messages appear in a pending queue for user review rather than the primary inbox. This differs from the legacy email concept of greylisting, which involves temporary rejection of messages from unknown sending servers.
+**Pending Queue**
+The default destination in the DMCN client for messages from senders who appear on neither the recipient's allowlist nor their blocklist. The pending queue is not a curated list — senders arrive there by the absence of any prior decision about them, not by being added to anything. Messages in the pending queue are held for user review, displayed with the sender's verified cryptographic identity and any network trust signals available. The recipient can allowlist the sender, accept the individual message, ignore it, or blocklist the sender. See also: *Allowlist*, *Blocklist*.
 
 ---
 
@@ -130,7 +130,7 @@ A framework for managing public-key cryptography at scale, typically involving c
 ---
 
 **Primary Key**
-The canonical cryptographic key pair representing a DMCN identity. There is exactly one active primary key per address at any point in time. It is published in the identity registry, anchors the trust graph, and is the key against which whitelist bindings are made. The primary key is not used for routine per-message operations; that role is delegated to device sub-keys. See also: *Device Sub-Key*, *Key Pair*.
+The canonical cryptographic key pair representing a DMCN identity. There is exactly one active primary key per address at any point in time. It is published in the identity registry, anchors the trust graph, and is the key against which allowlist bindings are made. The primary key is not used for routine per-message operations; that role is delegated to device sub-keys. See also: *Device Sub-Key*, *Key Pair*.
 
 ---
 
@@ -204,8 +204,8 @@ A broad term for a vision of a decentralised internet built on blockchain infras
 
 ---
 
-**Whitelist**
-In the DMCN trust model, the whitelist is the user's registry of confirmed trusted contacts. Unlike a simple address book, whitelist entries in the DMCN are cryptographically bound to specific public keys and carry a record of how trust was established (in-person verification, fingerprint check, network vouching, etc.). Messages from whitelisted contacts are delivered directly to the primary inbox without passing through the greylist queue.
+**Allowlist**
+In the DMCN trust model, the allowlist is the user's registry of confirmed trusted contacts. Unlike a simple address book, allowlist entries in the DMCN are cryptographically bound to specific public keys and carry a record of how trust was established (in-person verification, fingerprint check, network vouching, etc.). Messages from allowlisted contacts are delivered directly to the primary inbox without passing through the pending queue.
 
 
 

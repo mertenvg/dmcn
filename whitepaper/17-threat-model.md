@@ -82,7 +82,7 @@ account creation process (a Sybil attack), creating large numbers of
 identities before they are reported. Section 17.5 addresses Sybil
 resistance specifically. The consent-based inbox model (Section 8.2) provides a secondary layer: even a registered
 identity cannot reach a user's primary inbox without meeting one of the
-whitelisting criteria.
+allowlisting criteria.
 
 
 > **Net Assessment**
@@ -141,7 +141,7 @@ recipient's trust graph.
 
 A phishing attempt from an unregistered identity cannot enter the
 network. A phishing attempt from a registered identity that is not in
-the recipient's whitelist lands in the greylist pending queue, visibly
+the recipient's allowlist lands in the pending queue, visibly
 distinguished from trusted messages. The only viable phishing vector in
 the DMCN is a fully registered identity that the recipient has
 explicitly trusted — which requires the attacker to have established a
@@ -164,7 +164,7 @@ This represents a meaningful improvement over SMTP account compromise,
 but it introduces a new concern: if a private key is stolen (e.g., from
 a device without hardware security support), the attacker gains the full
 trust relationships of that identity with no visible indicator to
-contacts. The whitelist key-change notification system (Section 14.1.2)
+contacts. The allowlist key-change notification system (Section 14.1.2)
 partially mitigates this: if the attacker uses a new device, contacts
 will be alerted that the key has changed and prompted to re-verify.
 
@@ -333,9 +333,9 @@ uneconomical levels:
 
 - Account creation friction: requiring a verified phone number, email address, or proof-of-work computation during account creation raises the per-identity cost above zero
 
-- Rate limiting on new identity behaviour: newly created identities are subject to stricter greylist treatment and lower throughput limits until they have established a reputation history
+- Rate limiting on new identity behaviour: newly created identities are subject to stricter pending queue treatment and lower throughput limits until they have established a reputation history
 
-- Web-of-trust bootstrapping requirements: the consent-based inbox model means that a new identity must earn its way into recipients' whitelists; a Sybil farm of identities with no trust relationships has no delivery capability
+- Web-of-trust bootstrapping requirements: the consent-based inbox model means that a new identity must earn its way into recipients' allowlists; a Sybil farm of identities with no trust relationships has no delivery capability
 
 - Reputation feed correlation: feed operators can flag clusters of identities with similar creation timing, device fingerprints, or behaviour patterns as likely Sybil farms
 

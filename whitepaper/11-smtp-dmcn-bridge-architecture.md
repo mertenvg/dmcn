@@ -59,7 +59,7 @@ well-defined.
 
 - The bridge node receives the encrypted, signed DMCN message, verifies the sender's signature against the identity registry, and decrypts the message content using the bridge's own private key (the message is re-encrypted to the bridge's key rather than a non-existent recipient key).
 
-- The bridge constructs a standard SMTP message from the decrypted content, applying DKIM signing using the bridge operator's domain key. The From address is set to a bridge-scoped representation of the sender's DMCN address (e.g., username=dmcn.net@bridge.dmcn.net), preserving sender identity in a form that legacy email clients can display.
+- The bridge constructs a standard SMTP message from the decrypted content, applying DKIM signing using the bridge operator's domain key. The `From` header is set to the sender's human-readable DMCN address (e.g. `alice@mycompany.com`), so that the recipient's email client displays the sender's familiar identity. The `Sender` header is set to the bridge's own address (e.g. `bridge@bridge.dmcn.net`), identifying the mailbox actually responsible for transmission per RFC 5322. The `Reply-To` header is set to the sender's DMCN bridge receive address, so that replies from legacy clients are routed back through the bridge correctly. This combination — `From` showing the human author, `Sender` showing the transmitting agent — is the same pattern used by legitimate bulk email providers (such as Mailchimp and SendGrid) when sending on behalf of their customers. SPF and DKIM pass against the bridge's own domain; the `From` address is not required to be an authorised sender for those checks under standard DMARC evaluation when the `Sender` header is present.
 
 - The bridge delivers the SMTP message to the recipient's mail server using standard MX lookup and SMTP relay.
 
@@ -193,3 +193,4 @@ translation at scale is an engineering challenge with proven solutions:
 
 
 ---
+

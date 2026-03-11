@@ -89,7 +89,7 @@ The distributed identity registry exposes four operations:
 | `REGISTER` | `identity_record` | `ack` or `error` | Idempotent; re-registration updates the record if self-signature is valid |
 | `LOOKUP` | `address: string` | `identity_record` or `not_found` | Rate-limited per source; see Section 18.3.1 |
 | `REVOKE` | `address`, `revocation_signature` | `ack` or `error` | Revocation is permanent; revoked keys cannot be re-registered |
-| `UPDATE` | `identity_record` | `ack` or `error` | For key rotation; triggers key-change notifications to whitelisted contacts |
+| `UPDATE` | `identity_record` | `ack` or `error` | For key rotation; triggers key-change notifications to allowlisted contacts |
 
 Registry nodes maintain a Kademlia-style DHT keyed on the SHA-256 hash of the identity address string. Lookup queries converge in O(log N) hops where N is the number of **participating registry nodes**, not the number of registered identities. The number of identities affects how much data each node stores; it does not affect routing hop count. This distinction is significant for scalability: lookup latency grows logarithmically with the size of the node network, which is expected to remain orders of magnitude smaller than the identity population. A registry of 100,000 nodes serving 500 million identities converges in approximately log₂(100,000) ≈ 17 hops regardless of identity count.
 

@@ -30,7 +30,7 @@ Version 0.2 — Integrated Draft · March 2026 · *CONFIDENTIAL — Draft for Re
 - [10. Transition Strategy: Coexistence with Legacy Email](#10-transition-strategy)
 - [11. The SMTP-DMCN Bridge Architecture](#11-the-smtp-dmcn-bridge-architecture)
 - [12. Bringing Existing Email Addresses to the DMCN](#12-bringing-existing-email-addresses-to-the-dmcn)
-- [13. Trust Management: Whitelists, Greylists, and Blocklists](#13-trust-management)
+- [13. Trust Management: Allowlists, Pending Queue, and Blocklists](#13-trust-management)
 - [14. Threat Model](#14-threat-model)
 - [15. Open Challenges and Research Questions](#15-open-challenges-and-research-questions)
 - [16. Conclusion](#16-conclusion)
@@ -107,7 +107,7 @@ The primary contributions of this investigation are:
 
 - An analysis of address portability — the mechanism by which existing email addresses can be brought into the DMCN identity layer without requiring users to abandon their established address — and its implications for adoption and spam resistance
 
-- A layered trust management framework covering whitelists, greylists, shared reputation feeds, and the cryptographic blocklisting model that makes identity reputation permanent and non-transferable
+- A layered trust management framework covering allowlists, the pending queue, shared reputation feeds, and the cryptographic blocklisting model that makes identity reputation permanent and non-transferable
 
 - A threat model covering eight adversary categories, comparing DMCN's threat surface against SMTP and providing an honest assessment of which threats are eliminated, which are mitigated, and which remain open challenges
 
@@ -835,7 +835,7 @@ The DMCN uses a two-level key hierarchy to separate the question of *who a user 
 
 #### 7.5.1 The Primary Key
 
-Each DMCN identity has exactly one **primary key pair** at any point in time. The primary key is the canonical representation of the identity: it is what appears in the identity registry, what the trust graph is anchored to, what whitelists are bound to, and what contacts see when they look up an address. The primary key's public half is the stable long-term identifier for the address.
+Each DMCN identity has exactly one **primary key pair** at any point in time. The primary key is the canonical representation of the identity: it is what appears in the identity registry, what the trust graph is anchored to, what allowlists are bound to, and what contacts see when they look up an address. The primary key's public half is the stable long-term identifier for the address.
 
 The primary key is generated on the user's first device at account creation and is backed up through the encrypted key backup infrastructure described in Section 7.3. It is never generated or held by any server or relay node.
 
@@ -855,7 +855,7 @@ Sub-keys carry an optional `expires_at` field, enabling organisations to enforce
 
 #### 7.5.4 Key Rotation
 
-Periodic rotation of the primary key — whether on a schedule, following a suspected compromise, or as a policy requirement — is handled by publishing a new primary key to the registry via the `UPDATE` operation (Section 15.2.4), signed by both the old and new primary keys to prove continuity of control. This dual-signature rotation triggers key-change notifications to all whitelisted contacts (Section 14.1.2), prompting them to re-verify before the whitelist binding is updated.
+Periodic rotation of the primary key — whether on a schedule, following a suspected compromise, or as a policy requirement — is handled by publishing a new primary key to the registry via the `UPDATE` operation (Section 15.2.4), signed by both the old and new primary keys to prove continuity of control. This dual-signature rotation triggers key-change notifications to all allowlisted contacts (Section 14.1.2), prompting them to re-verify before the allowlist binding is updated.
 
 All device sub-keys must be re-issued under the new primary key following a primary key rotation, as existing sub-key signatures reference the old primary key fingerprint.
 
@@ -920,9 +920,9 @@ identities that meet one of the following criteria:
 
 - The recipient has explicitly opted in to receiving messages from unknown senders (for public figures or customer-facing businesses).
 
-Before any of these criteria are evaluated, the sender's cryptographic identity is checked against the recipient's personal blocklist and any shared reputation feeds the recipient has subscribed to. A sender present on either is silently dropped at the relay node before the message reaches the recipient's device — no delivery failure is returned to the sender, and no notification is shown to the recipient. Blocklist evaluation is a prerequisite gate, not a fallback; it applies regardless of whether the sender would otherwise have qualified for inbox or greylist delivery.
+Before any of these criteria are evaluated, the sender's cryptographic identity is checked against the recipient's personal blocklist and any shared reputation feeds the recipient has subscribed to. A sender present on either is silently dropped at the relay node before the message reaches the recipient's device — no delivery failure is returned to the sender, and no notification is shown to the recipient. Blocklist evaluation is a prerequisite gate, not a fallback; it applies regardless of whether the sender would otherwise have qualified for inbox or pending queue delivery.
 
-Messages from senders that clear the blocklist check but do not meet any of the whitelist criteria are placed in a pending queue where the recipient can review them. These messages still bear valid cryptographic signatures — the sender's identity is known — allowing the recipient to make an informed decision.
+Messages from senders that clear the blocklist check but do not meet any of the allowlist criteria are placed in a pending queue where the recipient can review them. These messages still bear valid cryptographic signatures — the sender's identity is known — allowing the recipient to make an informed decision.
 
 
 ### 8.3 Economic Disincentives for Spam
@@ -1137,7 +1137,7 @@ well-defined.
 
 - The bridge node receives the encrypted, signed DMCN message, verifies the sender's signature against the identity registry, and decrypts the message content using the bridge's own private key (the message is re-encrypted to the bridge's key rather than a non-existent recipient key).
 
-- The bridge constructs a standard SMTP message from the decrypted content, applying DKIM signing using the bridge operator's domain key. The From address is set to a bridge-scoped representation of the sender's DMCN address (e.g., username=dmcn.net@bridge.dmcn.net), preserving sender identity in a form that legacy email clients can display.
+- The bridge constructs a standard SMTP message from the decrypted content, applying DKIM signing using the bridge operator's domain key. The `From` header is set to the sender's human-readable DMCN address (e.g. `alice@mycompany.com`), so that the recipient's email client displays the sender's familiar identity. The `Sender` header is set to the bridge's own address (e.g. `bridge@bridge.dmcn.net`), identifying the mailbox actually responsible for transmission per RFC 5322. The `Reply-To` header is set to the sender's DMCN bridge receive address, so that replies from legacy clients are routed back through the bridge correctly. This combination — `From` showing the human author, `Sender` showing the transmitting agent — is the same pattern used by legitimate bulk email providers (such as Mailchimp and SendGrid) when sending on behalf of their customers. SPF and DKIM pass against the bridge's own domain; the `From` address is not required to be an authorised sender for those checks under standard DMARC evaluation when the `Sender` header is present.
 
 - The bridge delivers the SMTP message to the recipient's mail server using standard MX lookup and SMTP relay.
 
@@ -1562,7 +1562,7 @@ The revoked user's underlying DMCN identity — their key pair — is unaffected
 
 #### 13.3.2 Key-Change Notification on Revocation
 
-When a domain authority revokes an address, the whitelists of users who had that address as a trusted contact must be updated. The key-change notification mechanism described in Section 14.1.2 fires automatically on revocation: contacts are alerted that the identity previously known as `alice@company.com` is no longer active under that address, and are prompted to re-verify before resuming communication. This prevents a revoked identity from continuing to receive messages intended for the legitimate address holder.
+When a domain authority revokes an address, the allowlists of users who had that address as a trusted contact must be updated. The key-change notification mechanism described in Section 14.1.2 fires automatically on revocation: contacts are alerted that the identity previously known as `alice@company.com` is no longer active under that address, and are prompted to re-verify before resuming communication. This prevents a revoked identity from continuing to receive messages intended for the legitimate address holder.
 
 ---
 
@@ -1572,7 +1572,7 @@ Without a domain authority, nothing prevents two people from both attempting to 
 
 When a DAR is published with `REQUIRE_DOMAIN_COUNTERSIG`, this problem is structurally eliminated. A registration attempt for an address under a managed domain without the required countersignature is rejected by the registry as unverified. Only addresses that have passed through the domain authority's provisioning flow carry valid countersignatures and are accepted as verified identities under that domain.
 
-Relay nodes enforce this at message receipt: a message purporting to come from `cfo@company.com` without a valid domain countersignature from `company.com`'s registered DAR is treated as unverified and routed to the recipient's greylist queue regardless of the individual self-signature. The display name and address string are the same; the verification indicator is absent, which is the signal the recipient's client surfaces.
+Relay nodes enforce this at message receipt: a message purporting to come from `cfo@company.com` without a valid domain countersignature from `company.com`'s registered DAR is treated as unverified and routed to the recipient's pending queue regardless of the individual self-signature. The display name and address string are the same; the verification indicator is absent, which is the signal the recipient's client surfaces.
 
 ---
 
@@ -1639,7 +1639,7 @@ The DAR model intersects with several other sections of this whitepaper:
 
 **Section 12 (Address Portability)** — The DNS verification tiers in Section 12.2 establish domain ownership but do not address namespace governance. Domain authorities building on the `DOMAIN_DNS` or `DNSSEC_DANE` verification tiers in Section 12.2.2 and 12.2.3 should publish a DAR alongside their DNS verification record to activate managed domain behaviour. The two mechanisms are complementary: DNS verification proves domain ownership to the registry; the DAR declares the administrative policy the domain owner wishes to enforce.
 
-**Section 14 (Trust Management)** — Contacts managed under a DAR-governed domain are subject to automatic key-change notification (Section 14.1.2) on both individual key rotation and domain authority revocation. Whitelisted contacts of a managed identity should be treated as requiring re-verification on deprovisioning events, not merely on key changes initiated by the individual.
+**Section 14 (Trust Management)** — Contacts managed under a DAR-governed domain are subject to automatic key-change notification (Section 14.1.2) on both individual key rotation and domain authority revocation. Allowlisted contacts of a managed identity should be treated as requiring re-verification on deprovisioning events, not merely on key changes initiated by the individual.
 
 **Section 19.3 (Regulatory Compliance)** — The `ARCHIVE_REQUIRED` flag and the archive bridge model described in Section 13.5 directly address the compliance gap identified in Section 19.3. This does not fully close the challenge — edge cases around cross-jurisdiction archiving, legal holds, and eDiscovery production remain open — but it provides the structural mechanism on which compliance tooling can be built.
 
@@ -1650,7 +1650,7 @@ The DAR model intersects with several other sections of this whitepaper:
 
 ---
 
-## 14. Trust Management: Whitelists, Greylists, and Blocklists
+## 14. Trust Management: Allowlists, Pending Queue, and Blocklists
 
 
 Cryptographic identity verification is the foundation of the DMCN's
@@ -1663,7 +1663,7 @@ define, on their own terms, who they trust, who they are uncertain
 about, and who they actively reject.
 
 The DMCN's trust management system operates at three tiers ---
-whitelist, greylist, and blocklist — each with distinct delivery
+allowlist, pending queue, and blocklist — each with distinct delivery
 semantics, key storage implications, and sharing properties. Together
 they form a layered defence that is more powerful than anything
 available in legacy email, precisely because the identities being
@@ -1671,14 +1671,14 @@ managed are cryptographic and persistent rather than superficial and
 easily spoofed.
 
 
-### 14.1 The Whitelist: Confirmed Trusted Senders
+### 14.1 The Allowlist: Confirmed Trusted Senders
 
 
-The whitelist is the user's registry of confirmed trusted contacts. It
+The allowlist is the user's registry of confirmed trusted contacts. It
 is not merely an address book — it is a cryptographically anchored
 record that binds a human identity to a specific public key, with a
 record of how and when that binding was established. Every entry in the
-whitelist carries a trust provenance — the mechanism by which the user
+allowlist carries a trust provenance — the mechanism by which the user
 confirmed the contact's identity — which is surfaced in the client UI
 to help users understand the strength of each trust relationship.
 
@@ -1687,19 +1687,19 @@ to help users understand the strength of each trust relationship.
 
 
 The DMCN supports multiple mechanisms for adding a contact to the
-whitelist, ranked here in descending order of trust strength:
+allowlist, ranked here in descending order of trust strength:
 
-- Direct key exchange — the user and contact are physically present and exchange public keys via a QR code scan in the DMCN mobile application. This establishes an in-person verified binding with the highest possible assurance. The resulting whitelist entry is marked Verified In-Person.
+- Direct key exchange — the user and contact are physically present and exchange public keys via a QR code scan in the DMCN mobile application. This establishes an in-person verified binding with the highest possible assurance. The resulting allowlist entry is marked Verified In-Person.
 
 - Fingerprint verification — the user retrieves a contact's public key from the identity registry and then verifies the key fingerprint through an independent channel (a phone call, a video call, a previously trusted communication method). The user confirms that the fingerprint read aloud by the contact matches the one in the registry. Marked Fingerprint Verified.
 
-- Web-of-trust promotion — the contact is already whitelisted by two or more of the user's existing Verified contacts. The user can choose to extend trust on the basis of their network's endorsement, with a clear indication of which mutual contacts vouch for the new addition. Marked Network Vouched.
+- Web-of-trust promotion — the contact is already allowlisted by two or more of the user's existing Verified contacts. The user can choose to extend trust on the basis of their network's endorsement, with a clear indication of which mutual contacts vouch for the new addition. Marked Network Vouched.
 
 - Organisational verification — the contact holds a DMCN identity attested by an organisation the user has already verified (e.g., a colleague whose identity is attested by a shared employer domain). Marked Organisationally Verified.
 
-- First-message confirmation — the user receives a message from an unknown sender and actively chooses to approve and whitelist them. This is the weakest trust mechanism — the user has reviewed the message and chosen to accept the sender, but has not independently verified the key. Marked User Approved.
+- First-message confirmation — the user receives a message from an unknown sender and actively chooses to approve and allowlist them. This is the weakest trust mechanism — the user has reviewed the message and chosen to accept the sender, but has not independently verified the key. Marked User Approved.
 
-Trust provenance is preserved indefinitely in the whitelist record and
+Trust provenance is preserved indefinitely in the allowlist record and
 is visible to the user at any time. A contact marked Verified In-Person
 carries a fundamentally different assurance than one marked User
 Approved, and the client communicates this distinction without requiring
@@ -1709,7 +1709,7 @@ the user to understand the underlying cryptography.
 #### 14.1.2 Key Binding and Update Handling
 
 
-Because whitelist entries are bound to specific public keys rather than
+Because allowlist entries are bound to specific public keys rather than
 addresses alone, the DMCN client must handle the case where a contact's
 key changes — for example, when they migrate to a new device, perform
 a key rotation, or recover their account through the social recovery
@@ -1718,27 +1718,27 @@ mechanism.
 When a contact's public key changes, the client presents an explicit
 notification to the user: the previous key is no longer active, a new
 key has been published, and the user must re-verify the contact before
-the whitelist binding is updated. Automatic silent key updates are not
-permitted for whitelist entries — the user must consciously re-confirm
+the allowlist binding is updated. Automatic silent key updates are not
+permitted for allowlist entries — the user must consciously re-confirm
 the relationship. This prevents a class of attack in which an adversary
 replaces a contact's key in the identity registry and silently
 intercepts subsequent communication.
 
-The same notification mechanism fires when a contact's address is deprovisioned by a domain authority — for example, when an employee leaves an organisation and their `@company.com` identity is revoked. Contacts who had that address whitelisted are alerted that the identity is no longer active and are prompted to re-verify before sending further messages. The domain authority revocation model that triggers this behaviour is specified in Section 13.3.
+The same notification mechanism fires when a contact's address is deprovisioned by a domain authority — for example, when an employee leaves an organisation and their `@company.com` identity is revoked. Contacts who had that address allowlisted are alerted that the identity is no longer active and are prompted to re-verify before sending further messages. The domain authority revocation model that triggers this behaviour is specified in Section 13.3.
 
 
 > **Key Change Alert**
-> *When a whitelisted contact's public key changes, the DMCN client
+> *When a allowlisted contact's public key changes, the DMCN client
 > suspends delivery from that identity and alerts the user. No message
 > is delivered under an unconfirmed new key until the user explicitly
 > re-verifies. This is a deliberate friction point — it is the
 > correct response to a high-assurance security event.*
 
 
-#### 14.1.3 Whitelist Portability and Backup
+#### 14.1.3 Allowlist Portability and Backup
 
 
-The whitelist is an asset of significant personal value — it
+The allowlist is an asset of significant personal value — it
 represents years of accumulated trust relationships. It is therefore
 backed up as part of the user's encrypted key material and can be
 exported in a standardised, encrypted format for migration between
@@ -1748,46 +1748,36 @@ entry, so that the history of how trust was established is preserved
 across migrations.
 
 
-### 14.2 The Greylist: Unknown but Unblocked Senders
+### 14.2 The Pending Queue: Unknown but Unblocked Senders
 
 
-The greylist occupies the space between explicit trust and explicit
-rejection. It is the default destination for messages from DMCN-verified
-senders who are not yet on the user's whitelist — verified in the
-cryptographic sense, meaning their signature is valid and their identity
-is registered, but not yet confirmed as trusted by the user.
+The pending queue is not a list that senders are added to — it is where messages arrive by default when the sender is on neither the allowlist nor the blocklist. A sender reaches the pending queue simply by being unknown to the recipient: their cryptographic identity is registered and their message signature is valid, but the recipient has made no prior decision about them in either direction.
 
 
-#### 14.2.1 Greylist Delivery Semantics
+#### 14.2.1 Pending Queue Delivery Semantics
 
 
-Messages arriving from greylist senders are held in a pending queue,
-visually distinct from the primary inbox. The client displays the
-sender's verified DMCN identity, the trust provenance of the sender in
-the network (whether any of the user's contacts have vouched for them,
-and if so how many), and a summary of the message sufficient to make an
-informed accept-or-reject decision — without requiring the user to
-fully open and read the message first.
+Messages held in the pending queue are presented in a section of the client visually distinct from the primary inbox. The client displays the sender's verified DMCN identity, the trust provenance of the sender in the network (whether any of the user's contacts have vouched for them, and if so how many), and a summary of the message sufficient to make an informed accept-or-reject decision — without requiring the user to fully open and read the message first.
 
-From the greylist queue the user has four options for each pending
-message: Accept and whitelist the sender (promoting all future messages
+From the pending queue the user has four options for each pending
+message: Accept and allowlist the sender (promoting all future messages
 to the primary inbox), Accept this message only (delivering the message
-without whitelisting the sender), Reject and ignore (discarding the
+without allowlisting the sender), Reject and ignore (discarding the
 message without any notification to the sender), or Reject and blocklist
 (discarding the message and adding the sender to the blocklist to
 prevent future delivery attempts).
 
 
-#### 14.2.2 Greylist Auto-Resolution Rules
+#### 14.2.2 Pending Queue Auto-Resolution Rules
 
 
-To reduce the burden of manual greylist management, the client supports
+To reduce the burden of manual review, the client supports
 configurable auto-resolution rules that can automatically promote or
-demote senders based on network signals:
+demote senders before they reach the pending queue, based on network signals:
 
-- Auto-promote if vouched by N or more whitelist contacts — configurable threshold, default of 3.
+- Auto-promote if vouched by N or more allowlist contacts — configurable threshold, default of 3.
 
-- Auto-promote if sender holds a verified organisational identity matching a domain the user has previously whitelisted.
+- Auto-promote if sender holds a verified organisational identity matching a domain the user has previously allowlisted.
 
 - Auto-promote if the sender's identity has a reputation score above a configurable threshold in the user's chosen shared reputation feed.
 
@@ -1901,7 +1891,7 @@ its legacy equivalents deserves explicit emphasis. When a DMCN identity
 is reported and listed across multiple feeds, that listing is
 effectively permanent for that key pair. The spammer's investment in
 building a sending reputation — any messages that passed through
-greylists, any contacts who user-approved them, any network vouching
+the pending queue, any contacts who user-approved them, any network vouching
 they accumulated — is entirely lost. Starting over requires a new
 identity, new account creation friction, and the same uphill
 reputation-building process from scratch.
@@ -1930,13 +1920,12 @@ from profitable to unprofitable.
   **Tier**      **Sender Type**      **Delivery      **Key Bound?** **Shareable?**
                                      Destination**                  
 
-  Whitelist     Verified trusted     Primary inbox,  Yes — with   Exportable
+  Allowlist     Verified trusted     Primary inbox,  Yes — with   Exportable
                 contact              immediate       provenance     (private)
                                      delivery                       
 
-  Greylist      Verified but unknown Pending queue,  Yes —        No
-                sender               user review     identity       
-                                                     displayed      
+  Pending       Verified but unknown Pending queue,  No — state   No
+  Queue         sender               user review     not stored
 
   Personal      Explicitly rejected  Silently        Yes — key    No (private)
   Blocklist     sender               dropped at      blocked        
@@ -2043,7 +2032,7 @@ The distributed identity registry exposes four operations:
 | `REGISTER` | `identity_record` | `ack` or `error` | Idempotent; re-registration updates the record if self-signature is valid |
 | `LOOKUP` | `address: string` | `identity_record` or `not_found` | Rate-limited per source; see Section 18.3.1 |
 | `REVOKE` | `address`, `revocation_signature` | `ack` or `error` | Revocation is permanent; revoked keys cannot be re-registered |
-| `UPDATE` | `identity_record` | `ack` or `error` | For key rotation; triggers key-change notifications to whitelisted contacts |
+| `UPDATE` | `identity_record` | `ack` or `error` | For key rotation; triggers key-change notifications to allowlisted contacts |
 
 Registry nodes maintain a Kademlia-style DHT keyed on the SHA-256 hash of the identity address string. Lookup queries converge in O(log N) hops where N is the number of **participating registry nodes**, not the number of registered identities. The number of identities affects how much data each node stores; it does not affect routing hop count. This distinction is significant for scalability: lookup latency grows logarithmically with the size of the node network, which is expected to remain orders of magnitude smaller than the identity population. A registry of 100,000 nodes serving 500 million identities converges in approximately log₂(100,000) ≈ 17 hops regardless of identity count.
 
@@ -2614,7 +2603,7 @@ account creation process (a Sybil attack), creating large numbers of
 identities before they are reported. Section 17.5 addresses Sybil
 resistance specifically. The consent-based inbox model (Section 8.2) provides a secondary layer: even a registered
 identity cannot reach a user's primary inbox without meeting one of the
-whitelisting criteria.
+allowlisting criteria.
 
 
 > **Net Assessment**
@@ -2673,7 +2662,7 @@ recipient's trust graph.
 
 A phishing attempt from an unregistered identity cannot enter the
 network. A phishing attempt from a registered identity that is not in
-the recipient's whitelist lands in the greylist pending queue, visibly
+the recipient's allowlist lands in the pending queue, visibly
 distinguished from trusted messages. The only viable phishing vector in
 the DMCN is a fully registered identity that the recipient has
 explicitly trusted — which requires the attacker to have established a
@@ -2696,7 +2685,7 @@ This represents a meaningful improvement over SMTP account compromise,
 but it introduces a new concern: if a private key is stolen (e.g., from
 a device without hardware security support), the attacker gains the full
 trust relationships of that identity with no visible indicator to
-contacts. The whitelist key-change notification system (Section 14.1.2)
+contacts. The allowlist key-change notification system (Section 14.1.2)
 partially mitigates this: if the attacker uses a new device, contacts
 will be alerted that the key has changed and prompted to re-verify.
 
@@ -2865,9 +2854,9 @@ uneconomical levels:
 
 - Account creation friction: requiring a verified phone number, email address, or proof-of-work computation during account creation raises the per-identity cost above zero
 
-- Rate limiting on new identity behaviour: newly created identities are subject to stricter greylist treatment and lower throughput limits until they have established a reputation history
+- Rate limiting on new identity behaviour: newly created identities are subject to stricter pending queue treatment and lower throughput limits until they have established a reputation history
 
-- Web-of-trust bootstrapping requirements: the consent-based inbox model means that a new identity must earn its way into recipients' whitelists; a Sybil farm of identities with no trust relationships has no delivery capability
+- Web-of-trust bootstrapping requirements: the consent-based inbox model means that a new identity must earn its way into recipients' allowlists; a Sybil farm of identities with no trust relationships has no delivery capability
 
 - Reputation feed correlation: feed operators can flag clusters of identities with similar creation timing, device fingerprints, or behaviour patterns as likely Sybil farms
 
@@ -3327,7 +3316,7 @@ The DMCN specification should define a maximum message retention period for rela
 
 GDPR Article 20 grants data subjects the right to receive their personal data in a structured, machine-readable format and to transmit it to another controller. In practice, for a messaging system, this means the user's message history, contact list, and trust relationships.
 
-The DMCN client should implement a full data export function that produces a portable, encrypted archive of the user's message history, whitelist, greylist, blocklist, and trust attestations in a documented, open format. This export serves both the regulatory compliance function and the practical function of enabling migration between DMCN client applications without loss of data.
+The DMCN client should implement a full data export function that produces a portable, encrypted archive of the user's message history, allowlist, blocklist, and trust attestations in a documented, open format. This export serves both the regulatory compliance function and the practical function of enabling migration between DMCN client applications without loss of data.
 
 ---
 
@@ -3537,7 +3526,7 @@ Terms are listed alphabetically. Where a term has a common abbreviation used in 
 ---
 
 **Blocklist**
-A user-maintained or community-maintained registry of cryptographic identities that are explicitly blocked from delivering messages. In the DMCN, blocklist entries are bound to public keys rather than surface addresses, making them impossible to circumvent by simply creating a new address string. See also: *Greylist*, *Whitelist*, *Shared Reputation Feed*.
+A user-maintained or community-maintained registry of cryptographic identities that are explicitly blocked from delivering messages. In the DMCN, blocklist entries are bound to public keys rather than surface addresses, making them impossible to circumvent by simply creating a new address string. See also: *Pending Queue*, *Allowlist*, *Shared Reputation Feed*.
 
 ---
 
@@ -3616,8 +3605,8 @@ A cryptographic property whereby compromise of a long-term private key does not 
 
 ---
 
-**Greylist**
-In the DMCN trust model, the greylist is the holding area for messages from senders who are cryptographically verified (their identity is registered and their message signature is valid) but not yet explicitly trusted by the recipient. Greylisted messages appear in a pending queue for user review rather than the primary inbox. This differs from the legacy email concept of greylisting, which involves temporary rejection of messages from unknown sending servers.
+**Pending Queue**
+The default destination in the DMCN client for messages from senders who appear on neither the recipient's allowlist nor their blocklist. The pending queue is not a curated list — senders arrive there by the absence of any prior decision about them, not by being added to anything. Messages in the pending queue are held for user review, displayed with the sender's verified cryptographic identity and any network trust signals available. The recipient can allowlist the sender, accept the individual message, ignore it, or blocklist the sender. See also: *Allowlist*, *Blocklist*.
 
 ---
 
@@ -3662,7 +3651,7 @@ A framework for managing public-key cryptography at scale, typically involving c
 ---
 
 **Primary Key**
-The canonical cryptographic key pair representing a DMCN identity. There is exactly one active primary key per address at any point in time. It is published in the identity registry, anchors the trust graph, and is the key against which whitelist bindings are made. The primary key is not used for routine per-message operations; that role is delegated to device sub-keys. See also: *Device Sub-Key*, *Key Pair*.
+The canonical cryptographic key pair representing a DMCN identity. There is exactly one active primary key per address at any point in time. It is published in the identity registry, anchors the trust graph, and is the key against which allowlist bindings are made. The primary key is not used for routine per-message operations; that role is delegated to device sub-keys. See also: *Device Sub-Key*, *Key Pair*.
 
 ---
 
@@ -3736,8 +3725,8 @@ A broad term for a vision of a decentralised internet built on blockchain infras
 
 ---
 
-**Whitelist**
-In the DMCN trust model, the whitelist is the user's registry of confirmed trusted contacts. Unlike a simple address book, whitelist entries in the DMCN are cryptographically bound to specific public keys and carry a record of how trust was established (in-person verification, fingerprint check, network vouching, etc.). Messages from whitelisted contacts are delivered directly to the primary inbox without passing through the greylist queue.
+**Allowlist**
+In the DMCN trust model, the allowlist is the user's registry of confirmed trusted contacts. Unlike a simple address book, allowlist entries in the DMCN are cryptographically bound to specific public keys and carry a record of how trust was established (in-person verification, fingerprint check, network vouching, etc.). Messages from allowlisted contacts are delivered directly to the primary inbox without passing through the pending queue.
 
 
 

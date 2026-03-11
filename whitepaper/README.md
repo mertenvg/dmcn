@@ -30,7 +30,7 @@ Version 0.2 — Integrated Draft · March 2026 · *CONFIDENTIAL — Draft for Re
 - [10. Transition Strategy: Coexistence with Legacy Email](#10-transition-strategy)
 - [11. The SMTP-DMCN Bridge Architecture](#11-the-smtp-dmcn-bridge-architecture)
 - [12. Bringing Existing Email Addresses to the DMCN](#12-bringing-existing-email-addresses-to-the-dmcn)
-- [13. Trust Management: Whitelists, Greylists, and Blocklists](#13-trust-management)
+- [13. Trust Management: Allowlists, Pending Queue, and Blocklists](#13-trust-management)
 - [14. Threat Model](#14-threat-model)
 - [15. Open Challenges and Research Questions](#15-open-challenges-and-research-questions)
 - [16. Conclusion](#16-conclusion)

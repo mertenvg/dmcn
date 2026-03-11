@@ -161,7 +161,7 @@ The DMCN specification should define a maximum message retention period for rela
 
 GDPR Article 20 grants data subjects the right to receive their personal data in a structured, machine-readable format and to transmit it to another controller. In practice, for a messaging system, this means the user's message history, contact list, and trust relationships.
 
-The DMCN client should implement a full data export function that produces a portable, encrypted archive of the user's message history, whitelist, greylist, blocklist, and trust attestations in a documented, open format. This export serves both the regulatory compliance function and the practical function of enabling migration between DMCN client applications without loss of data.
+The DMCN client should implement a full data export function that produces a portable, encrypted archive of the user's message history, allowlist, blocklist, and trust attestations in a documented, open format. This export serves both the regulatory compliance function and the practical function of enabling migration between DMCN client applications without loss of data.
 
 ---
 

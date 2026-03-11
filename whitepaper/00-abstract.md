@@ -60,7 +60,7 @@ The primary contributions of this investigation are:
 
 - An analysis of address portability — the mechanism by which existing email addresses can be brought into the DMCN identity layer without requiring users to abandon their established address — and its implications for adoption and spam resistance
 
-- A layered trust management framework covering whitelists, greylists, shared reputation feeds, and the cryptographic blocklisting model that makes identity reputation permanent and non-transferable
+- A layered trust management framework covering allowlists, the pending queue, shared reputation feeds, and the cryptographic blocklisting model that makes identity reputation permanent and non-transferable
 
 - A threat model covering eight adversary categories, comparing DMCN's threat surface against SMTP and providing an honest assessment of which threats are eliminated, which are mitigated, and which remain open challenges
 

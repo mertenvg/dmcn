@@ -82,7 +82,7 @@ The DMCN uses a two-level key hierarchy to separate the question of *who a user 
 
 #### 7.5.1 The Primary Key
 
-Each DMCN identity has exactly one **primary key pair** at any point in time. The primary key is the canonical representation of the identity: it is what appears in the identity registry, what the trust graph is anchored to, what whitelists are bound to, and what contacts see when they look up an address. The primary key's public half is the stable long-term identifier for the address.
+Each DMCN identity has exactly one **primary key pair** at any point in time. The primary key is the canonical representation of the identity: it is what appears in the identity registry, what the trust graph is anchored to, what allowlists are bound to, and what contacts see when they look up an address. The primary key's public half is the stable long-term identifier for the address.
 
 The primary key is generated on the user's first device at account creation and is backed up through the encrypted key backup infrastructure described in Section 7.3. It is never generated or held by any server or relay node.
 
@@ -102,7 +102,7 @@ Sub-keys carry an optional `expires_at` field, enabling organisations to enforce
 
 #### 7.5.4 Key Rotation
 
-Periodic rotation of the primary key — whether on a schedule, following a suspected compromise, or as a policy requirement — is handled by publishing a new primary key to the registry via the `UPDATE` operation (Section 15.2.4), signed by both the old and new primary keys to prove continuity of control. This dual-signature rotation triggers key-change notifications to all whitelisted contacts (Section 14.1.2), prompting them to re-verify before the whitelist binding is updated.
+Periodic rotation of the primary key — whether on a schedule, following a suspected compromise, or as a policy requirement — is handled by publishing a new primary key to the registry via the `UPDATE` operation (Section 15.2.4), signed by both the old and new primary keys to prove continuity of control. This dual-signature rotation triggers key-change notifications to all allowlisted contacts (Section 14.1.2), prompting them to re-verify before the allowlist binding is updated.
 
 All device sub-keys must be re-issued under the new primary key following a primary key rotation, as existing sub-key signatures reference the old primary key fingerprint.
 

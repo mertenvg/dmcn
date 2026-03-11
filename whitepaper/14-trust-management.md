@@ -1,4 +1,4 @@
-## 14. Trust Management: Whitelists, Greylists, and Blocklists
+## 14. Trust Management: Allowlists, Pending Queue, and Blocklists
 
 
 Cryptographic identity verification is the foundation of the DMCN's
@@ -11,7 +11,7 @@ define, on their own terms, who they trust, who they are uncertain
 about, and who they actively reject.
 
 The DMCN's trust management system operates at three tiers ---
-whitelist, greylist, and blocklist — each with distinct delivery
+allowlist, pending queue, and blocklist — each with distinct delivery
 semantics, key storage implications, and sharing properties. Together
 they form a layered defence that is more powerful than anything
 available in legacy email, precisely because the identities being
@@ -19,14 +19,14 @@ managed are cryptographic and persistent rather than superficial and
 easily spoofed.
 
 
-### 14.1 The Whitelist: Confirmed Trusted Senders
+### 14.1 The Allowlist: Confirmed Trusted Senders
 
 
-The whitelist is the user's registry of confirmed trusted contacts. It
+The allowlist is the user's registry of confirmed trusted contacts. It
 is not merely an address book — it is a cryptographically anchored
 record that binds a human identity to a specific public key, with a
 record of how and when that binding was established. Every entry in the
-whitelist carries a trust provenance — the mechanism by which the user
+allowlist carries a trust provenance — the mechanism by which the user
 confirmed the contact's identity — which is surfaced in the client UI
 to help users understand the strength of each trust relationship.
 
@@ -35,19 +35,19 @@ to help users understand the strength of each trust relationship.
 
 
 The DMCN supports multiple mechanisms for adding a contact to the
-whitelist, ranked here in descending order of trust strength:
+allowlist, ranked here in descending order of trust strength:
 
-- Direct key exchange — the user and contact are physically present and exchange public keys via a QR code scan in the DMCN mobile application. This establishes an in-person verified binding with the highest possible assurance. The resulting whitelist entry is marked Verified In-Person.
+- Direct key exchange — the user and contact are physically present and exchange public keys via a QR code scan in the DMCN mobile application. This establishes an in-person verified binding with the highest possible assurance. The resulting allowlist entry is marked Verified In-Person.
 
 - Fingerprint verification — the user retrieves a contact's public key from the identity registry and then verifies the key fingerprint through an independent channel (a phone call, a video call, a previously trusted communication method). The user confirms that the fingerprint read aloud by the contact matches the one in the registry. Marked Fingerprint Verified.
 
-- Web-of-trust promotion — the contact is already whitelisted by two or more of the user's existing Verified contacts. The user can choose to extend trust on the basis of their network's endorsement, with a clear indication of which mutual contacts vouch for the new addition. Marked Network Vouched.
+- Web-of-trust promotion — the contact is already allowlisted by two or more of the user's existing Verified contacts. The user can choose to extend trust on the basis of their network's endorsement, with a clear indication of which mutual contacts vouch for the new addition. Marked Network Vouched.
 
 - Organisational verification — the contact holds a DMCN identity attested by an organisation the user has already verified (e.g., a colleague whose identity is attested by a shared employer domain). Marked Organisationally Verified.
 
-- First-message confirmation — the user receives a message from an unknown sender and actively chooses to approve and whitelist them. This is the weakest trust mechanism — the user has reviewed the message and chosen to accept the sender, but has not independently verified the key. Marked User Approved.
+- First-message confirmation — the user receives a message from an unknown sender and actively chooses to approve and allowlist them. This is the weakest trust mechanism — the user has reviewed the message and chosen to accept the sender, but has not independently verified the key. Marked User Approved.
 
-Trust provenance is preserved indefinitely in the whitelist record and
+Trust provenance is preserved indefinitely in the allowlist record and
 is visible to the user at any time. A contact marked Verified In-Person
 carries a fundamentally different assurance than one marked User
 Approved, and the client communicates this distinction without requiring
@@ -57,7 +57,7 @@ the user to understand the underlying cryptography.
 #### 14.1.2 Key Binding and Update Handling
 
 
-Because whitelist entries are bound to specific public keys rather than
+Because allowlist entries are bound to specific public keys rather than
 addresses alone, the DMCN client must handle the case where a contact's
 key changes — for example, when they migrate to a new device, perform
 a key rotation, or recover their account through the social recovery
@@ -66,27 +66,27 @@ mechanism.
 When a contact's public key changes, the client presents an explicit
 notification to the user: the previous key is no longer active, a new
 key has been published, and the user must re-verify the contact before
-the whitelist binding is updated. Automatic silent key updates are not
-permitted for whitelist entries — the user must consciously re-confirm
+the allowlist binding is updated. Automatic silent key updates are not
+permitted for allowlist entries — the user must consciously re-confirm
 the relationship. This prevents a class of attack in which an adversary
 replaces a contact's key in the identity registry and silently
 intercepts subsequent communication.
 
-The same notification mechanism fires when a contact's address is deprovisioned by a domain authority — for example, when an employee leaves an organisation and their `@company.com` identity is revoked. Contacts who had that address whitelisted are alerted that the identity is no longer active and are prompted to re-verify before sending further messages. The domain authority revocation model that triggers this behaviour is specified in Section 13.3.
+The same notification mechanism fires when a contact's address is deprovisioned by a domain authority — for example, when an employee leaves an organisation and their `@company.com` identity is revoked. Contacts who had that address allowlisted are alerted that the identity is no longer active and are prompted to re-verify before sending further messages. The domain authority revocation model that triggers this behaviour is specified in Section 13.3.
 
 
 > **Key Change Alert**
-> *When a whitelisted contact's public key changes, the DMCN client
+> *When a allowlisted contact's public key changes, the DMCN client
 > suspends delivery from that identity and alerts the user. No message
 > is delivered under an unconfirmed new key until the user explicitly
 > re-verifies. This is a deliberate friction point — it is the
 > correct response to a high-assurance security event.*
 
 
-#### 14.1.3 Whitelist Portability and Backup
+#### 14.1.3 Allowlist Portability and Backup
 
 
-The whitelist is an asset of significant personal value — it
+The allowlist is an asset of significant personal value — it
 represents years of accumulated trust relationships. It is therefore
 backed up as part of the user's encrypted key material and can be
 exported in a standardised, encrypted format for migration between
@@ -96,46 +96,36 @@ entry, so that the history of how trust was established is preserved
 across migrations.
 
 
-### 14.2 The Greylist: Unknown but Unblocked Senders
+### 14.2 The Pending Queue: Unknown but Unblocked Senders
 
 
-The greylist occupies the space between explicit trust and explicit
-rejection. It is the default destination for messages from DMCN-verified
-senders who are not yet on the user's whitelist — verified in the
-cryptographic sense, meaning their signature is valid and their identity
-is registered, but not yet confirmed as trusted by the user.
+The pending queue is not a list that senders are added to — it is where messages arrive by default when the sender is on neither the allowlist nor the blocklist. A sender reaches the pending queue simply by being unknown to the recipient: their cryptographic identity is registered and their message signature is valid, but the recipient has made no prior decision about them in either direction.
 
 
-#### 14.2.1 Greylist Delivery Semantics
+#### 14.2.1 Pending Queue Delivery Semantics
 
 
-Messages arriving from greylist senders are held in a pending queue,
-visually distinct from the primary inbox. The client displays the
-sender's verified DMCN identity, the trust provenance of the sender in
-the network (whether any of the user's contacts have vouched for them,
-and if so how many), and a summary of the message sufficient to make an
-informed accept-or-reject decision — without requiring the user to
-fully open and read the message first.
+Messages held in the pending queue are presented in a section of the client visually distinct from the primary inbox. The client displays the sender's verified DMCN identity, the trust provenance of the sender in the network (whether any of the user's contacts have vouched for them, and if so how many), and a summary of the message sufficient to make an informed accept-or-reject decision — without requiring the user to fully open and read the message first.
 
-From the greylist queue the user has four options for each pending
-message: Accept and whitelist the sender (promoting all future messages
+From the pending queue the user has four options for each pending
+message: Accept and allowlist the sender (promoting all future messages
 to the primary inbox), Accept this message only (delivering the message
-without whitelisting the sender), Reject and ignore (discarding the
+without allowlisting the sender), Reject and ignore (discarding the
 message without any notification to the sender), or Reject and blocklist
 (discarding the message and adding the sender to the blocklist to
 prevent future delivery attempts).
 
 
-#### 14.2.2 Greylist Auto-Resolution Rules
+#### 14.2.2 Pending Queue Auto-Resolution Rules
 
 
-To reduce the burden of manual greylist management, the client supports
+To reduce the burden of manual review, the client supports
 configurable auto-resolution rules that can automatically promote or
-demote senders based on network signals:
+demote senders before they reach the pending queue, based on network signals:
 
-- Auto-promote if vouched by N or more whitelist contacts — configurable threshold, default of 3.
+- Auto-promote if vouched by N or more allowlist contacts — configurable threshold, default of 3.
 
-- Auto-promote if sender holds a verified organisational identity matching a domain the user has previously whitelisted.
+- Auto-promote if sender holds a verified organisational identity matching a domain the user has previously allowlisted.
 
 - Auto-promote if the sender's identity has a reputation score above a configurable threshold in the user's chosen shared reputation feed.
 
@@ -249,7 +239,7 @@ its legacy equivalents deserves explicit emphasis. When a DMCN identity
 is reported and listed across multiple feeds, that listing is
 effectively permanent for that key pair. The spammer's investment in
 building a sending reputation — any messages that passed through
-greylists, any contacts who user-approved them, any network vouching
+the pending queue, any contacts who user-approved them, any network vouching
 they accumulated — is entirely lost. Starting over requires a new
 identity, new account creation friction, and the same uphill
 reputation-building process from scratch.
@@ -278,13 +268,12 @@ from profitable to unprofitable.
   **Tier**      **Sender Type**      **Delivery      **Key Bound?** **Shareable?**
                                      Destination**                  
 
-  Whitelist     Verified trusted     Primary inbox,  Yes — with   Exportable
+  Allowlist     Verified trusted     Primary inbox,  Yes — with   Exportable
                 contact              immediate       provenance     (private)
                                      delivery                       
 
-  Greylist      Verified but unknown Pending queue,  Yes —        No
-                sender               user review     identity       
-                                                     displayed      
+  Pending       Verified but unknown Pending queue,  No — state   No
+  Queue         sender               user review     not stored
 
   Personal      Explicitly rejected  Silently        Yes — key    No (private)
   Blocklist     sender               dropped at      blocked        

@@ -98,7 +98,7 @@ The revoked user's underlying DMCN identity — their key pair — is unaffected
 
 #### 13.3.2 Key-Change Notification on Revocation
 
-When a domain authority revokes an address, the whitelists of users who had that address as a trusted contact must be updated. The key-change notification mechanism described in Section 14.1.2 fires automatically on revocation: contacts are alerted that the identity previously known as `alice@company.com` is no longer active under that address, and are prompted to re-verify before resuming communication. This prevents a revoked identity from continuing to receive messages intended for the legitimate address holder.
+When a domain authority revokes an address, the allowlists of users who had that address as a trusted contact must be updated. The key-change notification mechanism described in Section 14.1.2 fires automatically on revocation: contacts are alerted that the identity previously known as `alice@company.com` is no longer active under that address, and are prompted to re-verify before resuming communication. This prevents a revoked identity from continuing to receive messages intended for the legitimate address holder.
 
 ---
 
@@ -108,7 +108,7 @@ Without a domain authority, nothing prevents two people from both attempting to 
 
 When a DAR is published with `REQUIRE_DOMAIN_COUNTERSIG`, this problem is structurally eliminated. A registration attempt for an address under a managed domain without the required countersignature is rejected by the registry as unverified. Only addresses that have passed through the domain authority's provisioning flow carry valid countersignatures and are accepted as verified identities under that domain.
 
-Relay nodes enforce this at message receipt: a message purporting to come from `cfo@company.com` without a valid domain countersignature from `company.com`'s registered DAR is treated as unverified and routed to the recipient's greylist queue regardless of the individual self-signature. The display name and address string are the same; the verification indicator is absent, which is the signal the recipient's client surfaces.
+Relay nodes enforce this at message receipt: a message purporting to come from `cfo@company.com` without a valid domain countersignature from `company.com`'s registered DAR is treated as unverified and routed to the recipient's pending queue regardless of the individual self-signature. The display name and address string are the same; the verification indicator is absent, which is the signal the recipient's client surfaces.
 
 ---
 
@@ -175,7 +175,7 @@ The DAR model intersects with several other sections of this whitepaper:
 
 **Section 12 (Address Portability)** — The DNS verification tiers in Section 12.2 establish domain ownership but do not address namespace governance. Domain authorities building on the `DOMAIN_DNS` or `DNSSEC_DANE` verification tiers in Section 12.2.2 and 12.2.3 should publish a DAR alongside their DNS verification record to activate managed domain behaviour. The two mechanisms are complementary: DNS verification proves domain ownership to the registry; the DAR declares the administrative policy the domain owner wishes to enforce.
 
-**Section 14 (Trust Management)** — Contacts managed under a DAR-governed domain are subject to automatic key-change notification (Section 14.1.2) on both individual key rotation and domain authority revocation. Whitelisted contacts of a managed identity should be treated as requiring re-verification on deprovisioning events, not merely on key changes initiated by the individual.
+**Section 14 (Trust Management)** — Contacts managed under a DAR-governed domain are subject to automatic key-change notification (Section 14.1.2) on both individual key rotation and domain authority revocation. Allowlisted contacts of a managed identity should be treated as requiring re-verification on deprovisioning events, not merely on key changes initiated by the individual.
 
 **Section 19.3 (Regulatory Compliance)** — The `ARCHIVE_REQUIRED` flag and the archive bridge model described in Section 13.5 directly address the compliance gap identified in Section 19.3. This does not fully close the challenge — edge cases around cross-jurisdiction archiving, legal holds, and eDiscovery production remain open — but it provides the structural mechanism on which compliance tooling can be built.
 
@@ -185,3 +185,4 @@ The DAR model intersects with several other sections of this whitepaper:
 
 
 ---
+
