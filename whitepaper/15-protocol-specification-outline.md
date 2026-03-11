@@ -234,8 +234,19 @@ encrypted_envelope {
     payload_nonce:        bytes[12]               // 96-bit random nonce for payload encryption
     payload_size_class:   uint32                  // padded size class (see Section 18.2.3)
     created_at:           uint64
+    ratchet_pubkey:       bytes[32]               // reserved; absent in version 1, ignored by all nodes
+                                                   // version 2+: sender's current DH ratchet public key
+                                                   // distinct from per-recipient ephemeral_pubkey in
+                                                   // recipient_record (used for CEK wrapping only);
+                                                   // additional ratchet state (message number, chain
+                                                   // length) is carried inside encrypted_payload, not
+                                                   // the envelope, keeping relay nodes unaware of
+                                                   // ratchet mechanics
 }
 ```
+
+> **Forward Secrecy Note**
+> *The `ratchet_pubkey` field is reserved for the Double Ratchet upgrade path described in Section 19 (Open Challenges). In protocol version 1, this field is absent and must be ignored by all nodes. Its presence in the schema now ensures that adding the DH ratchet in version 2 requires no structural change to the envelope format and no modification to relay node software. The version 1 per-message ephemeral key scheme (one ephemeral key per `recipient_record`) provides partial forward secrecy against passive observers who record ciphertext but do not hold the recipient's private key. Full forward secrecy against long-term key compromise requires the version 2 Double Ratchet layer.*
 
 **Decryption.** A recipient device locates the `recipient_record` whose `recipient_pubkey` matches its own device sub-key. It performs X25519 key exchange between its private sub-key and the `ephemeral_pubkey` in that record, derives the KWK via HKDF-SHA256, and uses it to unwrap the CEK. It then uses the CEK to decrypt the `encrypted_payload`. No other device's `recipient_record` is needed or accessed.
 
@@ -394,7 +405,7 @@ The DMCN protocol is designed to be extensible without breaking backward compati
 
 Proposed extensions are published as numbered extension specifications (analogous to IETF Internet-Drafts) and progress through a community review process before being assigned stable extension numbers and included in the reference implementation.
 
-Planned first-generation extensions include: group messaging (multi-recipient encrypted envelopes), message expiry (sender-specified deletion after a time period), read receipts distinct from delivery receipts, and rich text body support beyond the base `text/plain` and `text/html` content types.
+Planned first-generation extensions include: group messaging (multi-recipient encrypted envelopes), message expiry (sender-specified deletion after a time period), read receipts distinct from delivery receipts, rich text body support beyond the base `text/plain` and `text/html` content types, and the Double Ratchet session layer (protocol version 2, activated via the reserved `ratchet_pubkey` field in Section 15.3.3).
 
 
 
