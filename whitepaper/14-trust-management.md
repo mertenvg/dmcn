@@ -267,25 +267,12 @@ from profitable to unprofitable.
 ### 14.4 Trust Tier Interaction Summary
 
 
-  ------------- -------------------- --------------- -------------- ----------------
-  **Tier**      **Sender Type**      **Delivery      **Key Bound?** **Shareable?**
-                                     Destination**                  
-
-  Allowlist     Verified trusted     Primary inbox,  Yes — with   Exportable
-                contact              immediate       provenance     (private)
-                                     delivery                       
-
-  Pending       Verified but unknown Pending queue,  No — state   No
-  Queue         sender               user review     not stored
-
-  Personal      Explicitly rejected  Silently        Yes — key    No (private)
-  Blocklist     sender               dropped at      blocked        
-                                     relay                          
-
-  Shared        Community-reported   Dropped per     Yes —        Yes ---
-  Reputation    bad actor            feed policy     persistent     community opt-in
-  Feed                                               listing        
-  ------------- -------------------- --------------- -------------- ----------------
+| **Tier** | **Sender Type** | **Delivery Destination** | **Key Bound?** | **Shareable?** |
+|---|---|---|---|---|
+| Allowlist | Verified trusted contact | Primary inbox, immediate delivery | Yes — with provenance | Exportable (private) |
+| Pending Queue | Verified but unknown sender | Pending queue, user review | No — state not stored | No |
+| Personal Blocklist | Explicitly rejected sender | Silently dropped at relay | Yes — key blocked | No (private) |
+| Shared Reputation Feed | Community-reported bad actor | Dropped per feed policy | Yes — persistent listing | Yes — community opt-in |
 
 ---
 

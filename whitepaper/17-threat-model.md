@@ -566,53 +566,16 @@ transitional mechanism, not a permanent feature.
 The table below summarises each threat category, the current severity in
 SMTP, the treatment under DMCN, and the net outcome for each:
 
-  -----------------------------------------------------------------------
-  **Threat          **SMTP Severity** **DMCN            **Net Outcome**
-  Category**                          Treatment**       
-  ----------------- ----------------- ----------------- -----------------
-  Spam / Bulk       Critical —      Protocol-level    **Significantly
-  Messaging         protocol endemic  identity cost     Reduced**
-                                      eliminates        
-                                      economic          
-                                      viability         
-
-  Phishing /        Critical —      Cryptographic     **Significantly
-  Spoofing          trivially         signing makes     Reduced**
-                    executed          spoofing          
-                                      mathematically    
-                                      infeasible        
-
-  Infrastructure    High —          Distributed       **Partially
-  DoS               centralised       architecture      Mitigated**
-                    targets           reduces           
-                                      single-point risk 
-
-  Relay Node        High —          End-to-end        **Partially
-  Misbehaviour      plaintext in      encryption limits Mitigated**
-                    transit           relay visibility  
-                                      to metadata       
-
-  Sybil Attacks     N/A — no        Non-zero identity **Partially
-                    identity system   cost; permanent   Mitigated**
-                                      reputation loss   
-
-  State             Critical —      End-to-end        **Significantly
-  Surveillance      provider access   encryption; no    Reduced**
-                                      centralised       
-                                      interception      
-                                      point             
-
-  Key Compromise    High —          Hardware keys     **Partially
-                    passwords weak    raise bar;        Mitigated**
-                                      recovery          
-                                      introduces new    
-                                      surface           
-
-  Bridge Attacks    N/A —           Bounded to legacy **Partially
-                    DMCN-specific     traffic;          Mitigated**
-                                      diminishes with   
-                                      adoption          
-  -----------------------------------------------------------------------
+| **Threat Category** | **SMTP Severity** | **DMCN Treatment** | **Net Outcome** |
+|---|---|---|---|
+| Spam / Bulk Messaging | Critical — protocol endemic | Protocol-level identity cost eliminates economic viability | **Significantly Reduced** |
+| Phishing / Spoofing | Critical — trivially executed | Cryptographic signing makes spoofing mathematically infeasible | **Significantly Reduced** |
+| Infrastructure DoS | High — centralised targets | Distributed architecture reduces single-point risk | **Partially Mitigated** |
+| Relay Node Misbehaviour | High — plaintext in transit | End-to-end encryption limits relay visibility to metadata | **Partially Mitigated** |
+| Sybil Attacks | N/A — no identity system | Non-zero identity cost; permanent reputation loss | **Partially Mitigated** |
+| State Surveillance | Critical — provider access | End-to-end encryption; no centralised interception point | **Significantly Reduced** |
+| Key Compromise | High — passwords weak | Hardware keys raise bar; recovery introduces new surface | **Partially Mitigated** |
+| Bridge Attacks | N/A — DMCN-specific | Bounded to legacy traffic; diminishes with adoption | **Partially Mitigated** |
 
 
 > **Overall Assessment**

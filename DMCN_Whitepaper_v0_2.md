@@ -497,20 +497,13 @@ and UX precedents that a DMCN design should draw upon.
 ### 4.4 Summary Comparison
 
 
-  ---------------- ------------------- ------------- ------------ -------------- --------------
-  **Solution**     **Decentralized**   **Spam-Free   **No Crypto  **Mainstream   **Email
-                                       by Design**   Required**   UX**           Compatible**
-
-  PGP / S/MIME     Partial             No            No           No             Yes
-
-  Dmail Network    Yes                 Partial       No           No             Partial
-
-  ProtonMail       No                  No            Yes          Yes            Yes
-
-  Signal / Matrix  Yes                 N/A           Yes          Yes            No
-
-  Proposed DMCN    Yes                 Yes           Yes          Yes            Yes
-  ---------------- ------------------- ------------- ------------ -------------- --------------
+| **Solution** | **Decentralized** | **Spam-Free by Design** | **No Crypto Required** | **Mainstream UX** | **Email Compatible** |
+|---|---|---|---|---|---|
+| PGP / S/MIME | Partial | No | No | No | Yes |
+| Dmail Network | Yes | Partial | No | No | Partial |
+| ProtonMail | No | No | Yes | Yes | Yes |
+| Signal / Matrix | Yes | N/A | Yes | Yes | No |
+| Proposed DMCN | Yes | Yes | Yes | Yes | Yes |
 
 
 ---
@@ -855,7 +848,11 @@ Sub-keys carry an optional `expires_at` field, enabling organisations to enforce
 
 #### 7.5.4 Key Rotation
 
-Periodic rotation of the primary key — whether on a schedule, following a suspected compromise, or as a policy requirement — is handled by publishing a new primary key to the registry via the `UPDATE` operation (Section 15.2.4), signed by both the old and new primary keys to prove continuity of control. This dual-signature rotation triggers key-change notifications to all allowlisted contacts (Section 14.1.2), prompting them to re-verify before the allowlist binding is updated.
+Periodic rotation of the primary key — whether on a schedule, following a suspected compromise, or as a policy requirement — is handled by publishing a new primary key to the registry via the `UPDATE` operation (Section 15.2.4), signed by both the old and new primary keys to prove continuity of control. This dual-signature rotation is self-authenticating: only the legitimate key holder could have produced a valid signature from the old private key. Contacts who have the rotating identity on their allowlist will accept the new key silently, with a non-blocking notification, rather than being required to re-verify — because the cryptographic chain of custody is intact. The full handling logic for signed versus unsigned rotations is specified in Section 14.1.2.
+
+Following a signed rotation, the old key is retained in the registry in parallel with the new key for a seven-day window (configurable by domain authorities). This retention window provides a recovery path if the owner later discovers the old key was stolen: they can publish a `COMPROMISE` declaration against the old key during this window, which flags any rotation signed by it for re-verification by contacts. This is possible because a key theft is a copy, not a removal — the legitimate owner still holds the key and can sign the declaration. The `COMPROMISE` operation and its association rules are defined in Section 15.2.4.
+
+In cases where the old private key is unavailable — device loss, destruction, or social recovery — the rotation cannot carry an old-key signature and will trigger re-verification prompts for allowlisted contacts. This is the correct behaviour: an unsigned rotation is indistinguishable from a registry substitution attack without additional out-of-band confirmation.
 
 All device sub-keys must be re-issued under the new primary key following a primary key rotation, as existing sub-key signatures reference the old primary key fingerprint.
 
@@ -1376,22 +1373,11 @@ without relying on certificate authorities.
 ### 12.3 Trust Implications of Each Tier
 
 
-  ------------------- ---------------- ---------------- -----------------
-  **Verification      **Proof of       **Resistant to   **Recommended
-  Tier**              Control**        Provider         For**
-                                       Action**         
-
-  Provider-Hosted     Inbox access     No — provider  Individual users
-  (Gmail, Outlook)    only             can suspend      during transition
-
-  Custom Domain DNS   DNS record       Yes — domain   Professionals,
-  Verification        control          owner controls   small businesses
-                                       DNS              
-
-  DNSSEC / DANE       Cryptographic    Yes — highest  Enterprises,
-  Cryptographic       DNS chain        assurance        regulated
-  Binding                                               industries
-  ------------------- ---------------- ---------------- -----------------
+| **Verification Tier** | **Proof of Control** | **Resistant to Provider Action** | **Recommended For** |
+|---|---|---|---|
+| Provider-Hosted (Gmail, Outlook) | Inbox access only | No — provider can suspend | Individual users during transition |
+| Custom Domain DNS Verification | DNS record control | Yes — domain owner controls DNS | Professionals, small businesses |
+| DNSSEC / DANE Cryptographic Binding | Cryptographic DNS chain | Yes — highest assurance | Enterprises, regulated industries |
 
 
 ### 12.4 The Honest Limitation: Ownership vs. Control
@@ -1715,24 +1701,27 @@ key changes — for example, when they migrate to a new device, perform
 a key rotation, or recover their account through the social recovery
 mechanism.
 
-When a contact's public key changes, the client presents an explicit
-notification to the user: the previous key is no longer active, a new
-key has been published, and the user must re-verify the contact before
-the allowlist binding is updated. Automatic silent key updates are not
-permitted for allowlist entries — the user must consciously re-confirm
-the relationship. This prevents a class of attack in which an adversary
-replaces a contact's key in the identity registry and silently
-intercepts subsequent communication.
+The client distinguishes between two categories of key change, applying different handling to each:
 
-The same notification mechanism fires when a contact's address is deprovisioned by a domain authority — for example, when an employee leaves an organisation and their `@company.com` identity is revoked. Contacts who had that address allowlisted are alerted that the identity is no longer active and are prompted to re-verify before sending further messages. The domain authority revocation model that triggers this behaviour is specified in Section 13.3.
+**Signed rotation — silent update permitted.** When a new key is published to the registry accompanied by a valid signature from the previous private key, the rotation is self-authenticating: only the legitimate key holder could have produced that signature. In this case the client updates the allowlist binding silently, without prompting the user to re-verify. A brief non-blocking notification is surfaced — "Alice updated her key" — so the user is aware the change occurred, but no action is required and message delivery continues uninterrupted. This covers the common cases of routine key rotation, device migration, and scheduled credential refresh.
+
+**Unsigned rotation — re-verification required.** When a new key is published without a valid signature from the previous key — because the old key was lost, the device was destroyed, or the account was recovered through the social recovery mechanism — the client cannot cryptographically distinguish a legitimate recovery from an attacker who has substituted a key in the registry. In this case the client suspends delivery from that identity, alerts the user that the contact's key has changed without a verifiable chain of custody, and requires explicit re-verification before the allowlist binding is updated. This preserves the original protection against registry substitution attacks for precisely the cases where that protection is needed.
+
+This distinction means that the friction of re-verification is reserved for genuinely ambiguous key changes, rather than being imposed on every routine rotation. The social recovery case — where re-confirmation is unavoidable because the old key no longer exists — is handled honestly: recovery is disclosed as an unsigned transition, and contacts are informed accordingly.
+
+**Rotation retention window.** When a signed rotation is published, the old key is not immediately retired. It remains active in the registry in parallel with the new key for a configurable retention window — default seven days. This window serves a specific security purpose: if the legitimate owner discovers after rotating that their old private key was stolen, they can use the old key to publish a `COMPROMISE` declaration against it (see below) during this window. Because the attacker may have used the stolen old key to push the new key, a compromise declaration on the old key within the retention window automatically flags the new key as tainted — requiring re-verification by all contacts before the new key is trusted. The retention window therefore gives the legitimate owner a recovery path in the scenario where an attacker rotates the identity before the owner detects the theft.
+
+After the retention window expires, the old key is retired and the new key becomes the sole active primary key. Domain authorities managing a DMCN domain (Section 13) may configure a longer retention window — up to 30 days — for environments where delayed detection of key theft is a realistic concern.
+
+**Compromise declarations.** A `COMPROMISE` declaration is a signed registry operation distinct from a standard `REVOKE`. It carries the semantic that the declared key should be treated as having been in hostile hands, not merely retired from use. The declaration is signed by the key being declared compromised — possible because the legitimate owner still holds that key; an attacker who copied it did not remove it. Registry nodes that receive a `COMPROMISE` declaration propagate it with higher urgency than a standard revocation, and clients receiving it immediately suspend trust in any message signed by the compromised key, regardless of when that message was sent.
+
+The association rule is deliberately conservative: a `COMPROMISE` on the old key during the retention window flags the new key for re-verification, but does not automatically revoke it. This allows a legitimate owner who rotated cleanly and later discovered the old key was also stolen to recover the situation — they can publish a fresh signed rotation from the new key they hold, which they control and the attacker does not, resolving the re-verification flag. An attacker who pushed the new key cannot perform this recovery because they do not hold the new private key.
+
+The same notification mechanism fires when a contact's address is deprovisioned by a domain authority — for example, when an employee leaves an organisation and their `@company.com` identity is revoked. Domain authority revocations are always treated as unsigned transitions requiring re-verification, since the individual's old key is no longer valid as an authorising signature. The domain authority revocation model that triggers this behaviour is specified in Section 13.3.
 
 
-> **Key Change Alert**
-> *When a allowlisted contact's public key changes, the DMCN client
-> suspends delivery from that identity and alerts the user. No message
-> is delivered under an unconfirmed new key until the user explicitly
-> re-verifies. This is a deliberate friction point — it is the
-> correct response to a high-assurance security event.*
+> **Key Change Handling**
+> *A rotation signed by the old private key is accepted silently — only the legitimate key holder could have signed it. A rotation without that signature suspends delivery and requires the user to re-verify. If the old key is later found to have been stolen, the owner can declare it compromised during the seven-day retention window, flagging any rotation it signed for re-verification. Friction is applied where it is genuinely warranted.*
 
 
 #### 14.1.3 Allowlist Portability and Backup
@@ -1916,25 +1905,12 @@ from profitable to unprofitable.
 ### 14.4 Trust Tier Interaction Summary
 
 
-  ------------- -------------------- --------------- -------------- ----------------
-  **Tier**      **Sender Type**      **Delivery      **Key Bound?** **Shareable?**
-                                     Destination**                  
-
-  Allowlist     Verified trusted     Primary inbox,  Yes — with   Exportable
-                contact              immediate       provenance     (private)
-                                     delivery                       
-
-  Pending       Verified but unknown Pending queue,  No — state   No
-  Queue         sender               user review     not stored
-
-  Personal      Explicitly rejected  Silently        Yes — key    No (private)
-  Blocklist     sender               dropped at      blocked        
-                                     relay                          
-
-  Shared        Community-reported   Dropped per     Yes —        Yes ---
-  Reputation    bad actor            feed policy     persistent     community opt-in
-  Feed                                               listing        
-  ------------- -------------------- --------------- -------------- ----------------
+| **Tier** | **Sender Type** | **Delivery Destination** | **Key Bound?** | **Shareable?** |
+|---|---|---|---|---|
+| Allowlist | Verified trusted contact | Primary inbox, immediate delivery | Yes — with provenance | Exportable (private) |
+| Pending Queue | Verified but unknown sender | Pending queue, user review | No — state not stored | No |
+| Personal Blocklist | Explicitly rejected sender | Silently dropped at relay | Yes — key blocked | No (private) |
+| Shared Reputation Feed | Community-reported bad actor | Dropped per feed policy | Yes — persistent listing | Yes — community opt-in |
 
 ---
 
@@ -2025,14 +2001,36 @@ attestation_record {
 
 #### 15.2.4 Identity Registry Operations
 
-The distributed identity registry exposes four operations:
+The distributed identity registry exposes five operations:
 
 | Operation | Input | Output | Notes |
 |---|---|---|---|
 | `REGISTER` | `identity_record` | `ack` or `error` | Idempotent; re-registration updates the record if self-signature is valid |
 | `LOOKUP` | `address: string` | `identity_record` or `not_found` | Rate-limited per source; see Section 18.3.1 |
-| `REVOKE` | `address`, `revocation_signature` | `ack` or `error` | Revocation is permanent; revoked keys cannot be re-registered |
-| `UPDATE` | `identity_record` | `ack` or `error` | For key rotation; triggers key-change notifications to allowlisted contacts |
+| `REVOKE` | `address`, `revocation_signature` | `ack` or `error` | Permanent retirement of a key; revoked keys cannot be re-registered |
+| `UPDATE` | `identity_record`, `old_key_signature` | `ack` or `error` | Key rotation; old key is retained for `retention_window_days` alongside new key; triggers allowlist notifications |
+| `COMPROMISE` | `compromise_record` | `ack` or `error` | Declares a key as having been in hostile hands; propagated with high urgency; see below |
+
+The `UPDATE` operation includes a `retention_window_days` field (default: 7, domain-authority-configurable maximum: 30). During the retention window, both the old and new keys are returned in `LOOKUP` responses with their respective roles clearly tagged. After the window expires, the old key is retired automatically.
+
+The `COMPROMISE` operation uses the following record structure:
+
+```
+compromise_record {
+    version:                  uint32
+    address:                  string      // address of the identity
+    compromised_pubkey:       bytes[32]   // Ed25519 public key being declared compromised
+    declaration_timestamp:    uint64      // Unix timestamp of the declaration
+    compromise_signature:     bytes[64]   // Ed25519 signature by the compromised key itself
+    narrative:                string      // optional human-readable note; not displayed to third parties
+}
+```
+
+The `compromise_signature` is produced by the key being declared compromised. This is possible because a key theft is a copy — the legitimate owner retains their copy and can sign the declaration. Registry nodes verify this signature before accepting the declaration.
+
+**Propagation.** `COMPROMISE` declarations are propagated through the DHT with the same urgency as security-critical updates, rather than being batched with routine registry synchronisation. Clients that receive a compromise notification for a key they have stored — whether in an allowlist, a pending message, or a cached registry entry — must immediately surface an alert and suspend trust in that key.
+
+**Retention window association rule.** If a `COMPROMISE` declaration is received for a key during its retention window — that is, the key was declared compromised after being used to sign a rotation — the newly rotated key is automatically flagged as requiring re-verification by all contacts. It is not automatically revoked, because the legitimate owner may have rotated legitimately and later discovered the old key was also compromised. The owner can resolve the re-verification flag by publishing a fresh `UPDATE` signed by the new key, demonstrating they hold it. An attacker who pushed the new key cannot perform this resolution.
 
 Registry nodes maintain a Kademlia-style DHT keyed on the SHA-256 hash of the identity address string. Lookup queries converge in O(log N) hops where N is the number of **participating registry nodes**, not the number of registered identities. The number of identities affects how much data each node stores; it does not affect routing hop count. This distinction is significant for scalability: lookup latency grows logarithmically with the size of the node network, which is expected to remain orders of magnitude smaller than the identity population. A registry of 100,000 nodes serving 500 million identities converges in approximately log₂(100,000) ≈ 17 hops regardless of identity count.
 
@@ -3087,53 +3085,16 @@ transitional mechanism, not a permanent feature.
 The table below summarises each threat category, the current severity in
 SMTP, the treatment under DMCN, and the net outcome for each:
 
-  -----------------------------------------------------------------------
-  **Threat          **SMTP Severity** **DMCN            **Net Outcome**
-  Category**                          Treatment**       
-  ----------------- ----------------- ----------------- -----------------
-  Spam / Bulk       Critical —      Protocol-level    **Significantly
-  Messaging         protocol endemic  identity cost     Reduced**
-                                      eliminates        
-                                      economic          
-                                      viability         
-
-  Phishing /        Critical —      Cryptographic     **Significantly
-  Spoofing          trivially         signing makes     Reduced**
-                    executed          spoofing          
-                                      mathematically    
-                                      infeasible        
-
-  Infrastructure    High —          Distributed       **Partially
-  DoS               centralised       architecture      Mitigated**
-                    targets           reduces           
-                                      single-point risk 
-
-  Relay Node        High —          End-to-end        **Partially
-  Misbehaviour      plaintext in      encryption limits Mitigated**
-                    transit           relay visibility  
-                                      to metadata       
-
-  Sybil Attacks     N/A — no        Non-zero identity **Partially
-                    identity system   cost; permanent   Mitigated**
-                                      reputation loss   
-
-  State             Critical —      End-to-end        **Significantly
-  Surveillance      provider access   encryption; no    Reduced**
-                                      centralised       
-                                      interception      
-                                      point             
-
-  Key Compromise    High —          Hardware keys     **Partially
-                    passwords weak    raise bar;        Mitigated**
-                                      recovery          
-                                      introduces new    
-                                      surface           
-
-  Bridge Attacks    N/A —           Bounded to legacy **Partially
-                    DMCN-specific     traffic;          Mitigated**
-                                      diminishes with   
-                                      adoption          
-  -----------------------------------------------------------------------
+| **Threat Category** | **SMTP Severity** | **DMCN Treatment** | **Net Outcome** |
+|---|---|---|---|
+| Spam / Bulk Messaging | Critical — protocol endemic | Protocol-level identity cost eliminates economic viability | **Significantly Reduced** |
+| Phishing / Spoofing | Critical — trivially executed | Cryptographic signing makes spoofing mathematically infeasible | **Significantly Reduced** |
+| Infrastructure DoS | High — centralised targets | Distributed architecture reduces single-point risk | **Partially Mitigated** |
+| Relay Node Misbehaviour | High — plaintext in transit | End-to-end encryption limits relay visibility to metadata | **Partially Mitigated** |
+| Sybil Attacks | N/A — no identity system | Non-zero identity cost; permanent reputation loss | **Partially Mitigated** |
+| State Surveillance | Critical — provider access | End-to-end encryption; no centralised interception point | **Significantly Reduced** |
+| Key Compromise | High — passwords weak | Hardware keys raise bar; recovery introduces new surface | **Partially Mitigated** |
+| Bridge Attacks | N/A — DMCN-specific | Bounded to legacy traffic; diminishes with adoption | **Partially Mitigated** |
 
 
 > **Overall Assessment**
@@ -3542,6 +3503,16 @@ A category of email fraud in which an attacker impersonates a trusted party — 
 
 **Curve25519**
 An elliptic curve used for public-key cryptography, widely regarded as one of the most secure and performant curves available. Curve25519 is the basis for the X25519 key exchange protocol used in modern TLS, Signal, and many other security systems. It is one of the candidate curve families for the DMCN identity layer.
+
+---
+
+**Compromise Declaration**
+A signed registry operation by which a DMCN identity owner declares that their private key has been stolen or is otherwise in hostile hands. Unlike a standard revocation (which merely retires a key from active use), a compromise declaration carries the semantic that the key should be treated as having been controlled by an attacker. The declaration is signed by the compromised key itself — possible because key theft is a copy, not a removal, so the legitimate owner retains their copy. Registry nodes propagate compromise declarations with high urgency. If a compromise declaration is issued during the key rotation retention window, any rotation signed by the compromised key is automatically flagged for contact re-verification. See also: *Key Rotation Retention Window*, *Revocation*.
+
+---
+
+**Key Rotation Retention Window**
+A period — default seven days, domain-authority-configurable up to 30 — during which both the old and new primary keys coexist in the identity registry following a signed key rotation. The retention window exists to give the legitimate owner time to detect and respond to a key theft: if they discover the old key was stolen after rotating, they can publish a Compromise Declaration against it during this window, which flags the rotated-to key for re-verification by contacts. After the window expires, the old key is automatically retired. See also: *Compromise Declaration*, *Key Rotation*.
 
 ---
 

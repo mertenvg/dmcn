@@ -102,22 +102,11 @@ without relying on certificate authorities.
 ### 12.3 Trust Implications of Each Tier
 
 
-  ------------------- ---------------- ---------------- -----------------
-  **Verification      **Proof of       **Resistant to   **Recommended
-  Tier**              Control**        Provider         For**
-                                       Action**         
-
-  Provider-Hosted     Inbox access     No — provider  Individual users
-  (Gmail, Outlook)    only             can suspend      during transition
-
-  Custom Domain DNS   DNS record       Yes — domain   Professionals,
-  Verification        control          owner controls   small businesses
-                                       DNS              
-
-  DNSSEC / DANE       Cryptographic    Yes — highest  Enterprises,
-  Cryptographic       DNS chain        assurance        regulated
-  Binding                                               industries
-  ------------------- ---------------- ---------------- -----------------
+| **Verification Tier** | **Proof of Control** | **Resistant to Provider Action** | **Recommended For** |
+|---|---|---|---|
+| Provider-Hosted (Gmail, Outlook) | Inbox access only | No — provider can suspend | Individual users during transition |
+| Custom Domain DNS Verification | DNS record control | Yes — domain owner controls DNS | Professionals, small businesses |
+| DNSSEC / DANE Cryptographic Binding | Cryptographic DNS chain | Yes — highest assurance | Enterprises, regulated industries |
 
 
 ### 12.4 The Honest Limitation: Ownership vs. Control

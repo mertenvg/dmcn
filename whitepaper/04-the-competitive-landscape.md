@@ -54,23 +54,17 @@ and UX precedents that a DMCN design should draw upon.
 ### 4.4 Summary Comparison
 
 
-  ---------------- ------------------- ------------- ------------ -------------- --------------
-  **Solution**     **Decentralized**   **Spam-Free   **No Crypto  **Mainstream   **Email
-                                       by Design**   Required**   UX**           Compatible**
-
-  PGP / S/MIME     Partial             No            No           No             Yes
-
-  Dmail Network    Yes                 Partial       No           No             Partial
-
-  ProtonMail       No                  No            Yes          Yes            Yes
-
-  Signal / Matrix  Yes                 N/A           Yes          Yes            No
-
-  Proposed DMCN    Yes                 Yes           Yes          Yes            Yes
-  ---------------- ------------------- ------------- ------------ -------------- --------------
+| **Solution** | **Decentralized** | **Spam-Free by Design** | **No Crypto Required** | **Mainstream UX** | **Email Compatible** |
+|---|---|---|---|---|---|
+| PGP / S/MIME | Partial | No | No | No | Yes |
+| Dmail Network | Yes | Partial | No | No | Partial |
+| ProtonMail | No | No | Yes | Yes | Yes |
+| Signal / Matrix | Yes | N/A | Yes | Yes | No |
+| Proposed DMCN | Yes | Yes | Yes | Yes | Yes |
 
 
 ---
 
 
 ---
+
