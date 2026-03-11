@@ -102,7 +102,11 @@ Sub-keys carry an optional `expires_at` field, enabling organisations to enforce
 
 #### 7.5.4 Key Rotation
 
-Periodic rotation of the primary key — whether on a schedule, following a suspected compromise, or as a policy requirement — is handled by publishing a new primary key to the registry via the `UPDATE` operation (Section 15.2.4), signed by both the old and new primary keys to prove continuity of control. This dual-signature rotation triggers key-change notifications to all allowlisted contacts (Section 14.1.2), prompting them to re-verify before the allowlist binding is updated.
+Periodic rotation of the primary key — whether on a schedule, following a suspected compromise, or as a policy requirement — is handled by publishing a new primary key to the registry via the `UPDATE` operation (Section 15.2.4), signed by both the old and new primary keys to prove continuity of control. This dual-signature rotation is self-authenticating: only the legitimate key holder could have produced a valid signature from the old private key. Contacts who have the rotating identity on their allowlist will accept the new key silently, with a non-blocking notification, rather than being required to re-verify — because the cryptographic chain of custody is intact. The full handling logic for signed versus unsigned rotations is specified in Section 14.1.2.
+
+Following a signed rotation, the old key is retained in the registry in parallel with the new key for a seven-day window (configurable by domain authorities). This retention window provides a recovery path if the owner later discovers the old key was stolen: they can publish a `COMPROMISE` declaration against the old key during this window, which flags any rotation signed by it for re-verification by contacts. This is possible because a key theft is a copy, not a removal — the legitimate owner still holds the key and can sign the declaration. The `COMPROMISE` operation and its association rules are defined in Section 15.2.4.
+
+In cases where the old private key is unavailable — device loss, destruction, or social recovery — the rotation cannot carry an old-key signature and will trigger re-verification prompts for allowlisted contacts. This is the correct behaviour: an unsigned rotation is indistinguishable from a registry substitution attack without additional out-of-band confirmation.
 
 All device sub-keys must be re-issued under the new primary key following a primary key rotation, as existing sub-key signatures reference the old primary key fingerprint.
 

@@ -63,24 +63,27 @@ key changes — for example, when they migrate to a new device, perform
 a key rotation, or recover their account through the social recovery
 mechanism.
 
-When a contact's public key changes, the client presents an explicit
-notification to the user: the previous key is no longer active, a new
-key has been published, and the user must re-verify the contact before
-the allowlist binding is updated. Automatic silent key updates are not
-permitted for allowlist entries — the user must consciously re-confirm
-the relationship. This prevents a class of attack in which an adversary
-replaces a contact's key in the identity registry and silently
-intercepts subsequent communication.
+The client distinguishes between two categories of key change, applying different handling to each:
 
-The same notification mechanism fires when a contact's address is deprovisioned by a domain authority — for example, when an employee leaves an organisation and their `@company.com` identity is revoked. Contacts who had that address allowlisted are alerted that the identity is no longer active and are prompted to re-verify before sending further messages. The domain authority revocation model that triggers this behaviour is specified in Section 13.3.
+**Signed rotation — silent update permitted.** When a new key is published to the registry accompanied by a valid signature from the previous private key, the rotation is self-authenticating: only the legitimate key holder could have produced that signature. In this case the client updates the allowlist binding silently, without prompting the user to re-verify. A brief non-blocking notification is surfaced — "Alice updated her key" — so the user is aware the change occurred, but no action is required and message delivery continues uninterrupted. This covers the common cases of routine key rotation, device migration, and scheduled credential refresh.
+
+**Unsigned rotation — re-verification required.** When a new key is published without a valid signature from the previous key — because the old key was lost, the device was destroyed, or the account was recovered through the social recovery mechanism — the client cannot cryptographically distinguish a legitimate recovery from an attacker who has substituted a key in the registry. In this case the client suspends delivery from that identity, alerts the user that the contact's key has changed without a verifiable chain of custody, and requires explicit re-verification before the allowlist binding is updated. This preserves the original protection against registry substitution attacks for precisely the cases where that protection is needed.
+
+This distinction means that the friction of re-verification is reserved for genuinely ambiguous key changes, rather than being imposed on every routine rotation. The social recovery case — where re-confirmation is unavoidable because the old key no longer exists — is handled honestly: recovery is disclosed as an unsigned transition, and contacts are informed accordingly.
+
+**Rotation retention window.** When a signed rotation is published, the old key is not immediately retired. It remains active in the registry in parallel with the new key for a configurable retention window — default seven days. This window serves a specific security purpose: if the legitimate owner discovers after rotating that their old private key was stolen, they can use the old key to publish a `COMPROMISE` declaration against it (see below) during this window. Because the attacker may have used the stolen old key to push the new key, a compromise declaration on the old key within the retention window automatically flags the new key as tainted — requiring re-verification by all contacts before the new key is trusted. The retention window therefore gives the legitimate owner a recovery path in the scenario where an attacker rotates the identity before the owner detects the theft.
+
+After the retention window expires, the old key is retired and the new key becomes the sole active primary key. Domain authorities managing a DMCN domain (Section 13) may configure a longer retention window — up to 30 days — for environments where delayed detection of key theft is a realistic concern.
+
+**Compromise declarations.** A `COMPROMISE` declaration is a signed registry operation distinct from a standard `REVOKE`. It carries the semantic that the declared key should be treated as having been in hostile hands, not merely retired from use. The declaration is signed by the key being declared compromised — possible because the legitimate owner still holds that key; an attacker who copied it did not remove it. Registry nodes that receive a `COMPROMISE` declaration propagate it with higher urgency than a standard revocation, and clients receiving it immediately suspend trust in any message signed by the compromised key, regardless of when that message was sent.
+
+The association rule is deliberately conservative: a `COMPROMISE` on the old key during the retention window flags the new key for re-verification, but does not automatically revoke it. This allows a legitimate owner who rotated cleanly and later discovered the old key was also stolen to recover the situation — they can publish a fresh signed rotation from the new key they hold, which they control and the attacker does not, resolving the re-verification flag. An attacker who pushed the new key cannot perform this recovery because they do not hold the new private key.
+
+The same notification mechanism fires when a contact's address is deprovisioned by a domain authority — for example, when an employee leaves an organisation and their `@company.com` identity is revoked. Domain authority revocations are always treated as unsigned transitions requiring re-verification, since the individual's old key is no longer valid as an authorising signature. The domain authority revocation model that triggers this behaviour is specified in Section 13.3.
 
 
-> **Key Change Alert**
-> *When a allowlisted contact's public key changes, the DMCN client
-> suspends delivery from that identity and alerts the user. No message
-> is delivered under an unconfirmed new key until the user explicitly
-> re-verifies. This is a deliberate friction point — it is the
-> correct response to a high-assurance security event.*
+> **Key Change Handling**
+> *A rotation signed by the old private key is accepted silently — only the legitimate key holder could have signed it. A rotation without that signature suspends delivery and requires the user to re-verify. If the old key is later found to have been stolen, the owner can declare it compromised during the seven-day retention window, flagging any rotation it signed for re-verification. Friction is applied where it is genuinely warranted.*
 
 
 #### 14.1.3 Allowlist Portability and Backup

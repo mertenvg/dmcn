@@ -82,14 +82,36 @@ attestation_record {
 
 #### 15.2.4 Identity Registry Operations
 
-The distributed identity registry exposes four operations:
+The distributed identity registry exposes five operations:
 
 | Operation | Input | Output | Notes |
 |---|---|---|---|
 | `REGISTER` | `identity_record` | `ack` or `error` | Idempotent; re-registration updates the record if self-signature is valid |
 | `LOOKUP` | `address: string` | `identity_record` or `not_found` | Rate-limited per source; see Section 18.3.1 |
-| `REVOKE` | `address`, `revocation_signature` | `ack` or `error` | Revocation is permanent; revoked keys cannot be re-registered |
-| `UPDATE` | `identity_record` | `ack` or `error` | For key rotation; triggers key-change notifications to allowlisted contacts |
+| `REVOKE` | `address`, `revocation_signature` | `ack` or `error` | Permanent retirement of a key; revoked keys cannot be re-registered |
+| `UPDATE` | `identity_record`, `old_key_signature` | `ack` or `error` | Key rotation; old key is retained for `retention_window_days` alongside new key; triggers allowlist notifications |
+| `COMPROMISE` | `compromise_record` | `ack` or `error` | Declares a key as having been in hostile hands; propagated with high urgency; see below |
+
+The `UPDATE` operation includes a `retention_window_days` field (default: 7, domain-authority-configurable maximum: 30). During the retention window, both the old and new keys are returned in `LOOKUP` responses with their respective roles clearly tagged. After the window expires, the old key is retired automatically.
+
+The `COMPROMISE` operation uses the following record structure:
+
+```
+compromise_record {
+    version:                  uint32
+    address:                  string      // address of the identity
+    compromised_pubkey:       bytes[32]   // Ed25519 public key being declared compromised
+    declaration_timestamp:    uint64      // Unix timestamp of the declaration
+    compromise_signature:     bytes[64]   // Ed25519 signature by the compromised key itself
+    narrative:                string      // optional human-readable note; not displayed to third parties
+}
+```
+
+The `compromise_signature` is produced by the key being declared compromised. This is possible because a key theft is a copy — the legitimate owner retains their copy and can sign the declaration. Registry nodes verify this signature before accepting the declaration.
+
+**Propagation.** `COMPROMISE` declarations are propagated through the DHT with the same urgency as security-critical updates, rather than being batched with routine registry synchronisation. Clients that receive a compromise notification for a key they have stored — whether in an allowlist, a pending message, or a cached registry entry — must immediately surface an alert and suspend trust in that key.
+
+**Retention window association rule.** If a `COMPROMISE` declaration is received for a key during its retention window — that is, the key was declared compromised after being used to sign a rotation — the newly rotated key is automatically flagged as requiring re-verification by all contacts. It is not automatically revoked, because the legitimate owner may have rotated legitimately and later discovered the old key was also compromised. The owner can resolve the re-verification flag by publishing a fresh `UPDATE` signed by the new key, demonstrating they hold it. An attacker who pushed the new key cannot perform this resolution.
 
 Registry nodes maintain a Kademlia-style DHT keyed on the SHA-256 hash of the identity address string. Lookup queries converge in O(log N) hops where N is the number of **participating registry nodes**, not the number of registered identities. The number of identities affects how much data each node stores; it does not affect routing hop count. This distinction is significant for scalability: lookup latency grows logarithmically with the size of the node network, which is expected to remain orders of magnitude smaller than the identity population. A registry of 100,000 nodes serving 500 million identities converges in approximately log₂(100,000) ≈ 17 hops regardless of identity count.
 

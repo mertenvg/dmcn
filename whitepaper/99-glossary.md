@@ -24,6 +24,16 @@ An elliptic curve used for public-key cryptography, widely regarded as one of th
 
 ---
 
+**Compromise Declaration**
+A signed registry operation by which a DMCN identity owner declares that their private key has been stolen or is otherwise in hostile hands. Unlike a standard revocation (which merely retires a key from active use), a compromise declaration carries the semantic that the key should be treated as having been controlled by an attacker. The declaration is signed by the compromised key itself — possible because key theft is a copy, not a removal, so the legitimate owner retains their copy. Registry nodes propagate compromise declarations with high urgency. If a compromise declaration is issued during the key rotation retention window, any rotation signed by the compromised key is automatically flagged for contact re-verification. See also: *Key Rotation Retention Window*, *Revocation*.
+
+---
+
+**Key Rotation Retention Window**
+A period — default seven days, domain-authority-configurable up to 30 — during which both the old and new primary keys coexist in the identity registry following a signed key rotation. The retention window exists to give the legitimate owner time to detect and respond to a key theft: if they discover the old key was stolen after rotating, they can publish a Compromise Declaration against it during this window, which flags the rotated-to key for re-verification by contacts. After the window expires, the old key is automatically retired. See also: *Compromise Declaration*, *Key Rotation*.
+
+---
+
 **DANE (DNS-based Authentication of Named Entities)**
 An internet standard that allows domain owners to publish cryptographic key material directly in DNS records secured by DNSSEC, creating a chain of trust from the DNS root to a specific certificate or key. The DMCN's highest-assurance address verification tier uses a DANE-style model to bind email addresses to public keys without relying on a certificate authority.
 
