@@ -237,6 +237,16 @@ func IdentityRecordFromProto(pb *dmcnpb.IdentityRecord) (*IdentityRecord, error)
 	}, nil
 }
 
+// IdentityRecordFromProtoBytes deserializes an IdentityRecord from raw
+// protobuf bytes. This is a convenience wrapper used by the registry package.
+func IdentityRecordFromProtoBytes(data []byte) (*IdentityRecord, error) {
+	pb := &dmcnpb.IdentityRecord{}
+	if err := proto.Unmarshal(data, pb); err != nil {
+		return nil, fmt.Errorf("identity: unmarshal: %w", err)
+	}
+	return IdentityRecordFromProto(pb)
+}
+
 // validateAddress performs basic validation on an address string.
 // Addresses must be in local@domain format.
 func validateAddress(address string) error {
