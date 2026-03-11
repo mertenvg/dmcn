@@ -1,0 +1,41 @@
+---
+title: Identity Registry — Kademlia DHT Lookup
+---
+sequenceDiagram
+    participant C as Client
+    participant LC as Local Cache
+    participant N1 as DHT Node 1\n(closest known)
+    participant N2 as DHT Node 2
+    participant N3 as DHT Node 3\n(key holder)
+    participant IR as Identity Record
+
+    C->>LC: Lookup SHA-256("bob@example.com")
+
+    alt Cache hit — key fresh
+        LC-->>C: Bob's identity_record ✓
+        Note over C,LC: Typical case for known contacts\nCache hit rate 90%+ for established users
+    else Cache miss or stale
+        LC-->>C: Not found / expired
+
+        Note over C,N1: DHT routes by XOR distance\nO(log N) hops to converge
+        C->>N1: FIND_NODE SHA-256("bob@example.com")
+        N1-->>C: Closer nodes: [N2, N4, N5]
+
+        C->>N2: FIND_NODE SHA-256("bob@example.com")
+        N2-->>C: Closer nodes: [N3, N6]
+
+        C->>N3: FIND_VALUE SHA-256("bob@example.com")
+        N3->>IR: Retrieve identity_record
+        IR-->>N3: identity_record
+
+        Note over N3: Verify self_signature on record\nbefore returning
+        N3-->>C: identity_record (verified ✓)
+
+        Note over C: Verify self_signature independently
+        C->>LC: Cache identity_record + pubkeys
+
+        Note over C: For multi-device recipients:\nreturns primary key + all\nactive device_subkey_records
+        C-->>C: Encrypt CEK for each\nactive device sub-key
+    end
+
+    Note over C,N3: Registry nodes never learn\nwhat message is being sent\nOnly that a lookup occurred

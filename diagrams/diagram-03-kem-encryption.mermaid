@@ -1,0 +1,76 @@
+---
+title: KEM Encryption — Multi-Device Envelope Structure (Section 15.3.3)
+---
+graph TB
+    subgraph SENDER["Sender (Alice's Client)"]
+        PM[plaintext_message]
+        SIG[signed_message\nEd25519 signature]
+        CEK[Random CEK\n256-bit symmetric key]
+        ENC[AES-256-GCM\nEncrypt payload once]
+        EP[encrypted_payload\nsingle ciphertext blob]
+
+        PM --> SIG
+        SIG --> ENC
+        CEK --> ENC
+        ENC --> EP
+    end
+
+    subgraph WRAP["CEK Wrapping — one per device sub-key"]
+        direction TB
+        subgraph RR1["recipient_record — Bob's Phone"]
+            EPH1[Ephemeral X25519\nkey pair #1]
+            KWK1[KWK via HKDF-SHA256]
+            WCEK1[wrapped_cek #1\n+ wrap_aead_tag\n+ wrap_nonce]
+            EPH1 --> KWK1
+            KWK1 --> WCEK1
+        end
+
+        subgraph RR2["recipient_record — Bob's Laptop"]
+            EPH2[Ephemeral X25519\nkey pair #2]
+            KWK2[KWK via HKDF-SHA256]
+            WCEK2[wrapped_cek #2\n+ wrap_aead_tag\n+ wrap_nonce]
+            EPH2 --> KWK2
+            KWK2 --> WCEK2
+        end
+
+        subgraph RR3["recipient_record — Bob's Tablet"]
+            EPH3[Ephemeral X25519\nkey pair #3]
+            KWK3[KWK via HKDF-SHA256]
+            WCEK3[wrapped_cek #3\n+ wrap_aead_tag\n+ wrap_nonce]
+            EPH3 --> KWK3
+            KWK3 --> WCEK3
+        end
+    end
+
+    subgraph ENVELOPE["encrypted_envelope (wire format)"]
+        ENV["version\nmessage_id\nrecipients[ RR1, RR2, RR3 ]\nencrypted_payload\npayload_aead_tag\npayload_nonce\npayload_size_class\ncreated_at\nratchet_pubkey (reserved v2)"]
+    end
+
+    subgraph DECRYPT["Recipient Device (Bob's Phone)"]
+        FIND[Find recipient_record\nmatching device sub-key]
+        X25519[X25519 exchange\nephemeral_pubkey × sub-key]
+        UWRAP[Unwrap CEK]
+        DEC[Decrypt encrypted_payload\nwith CEK]
+        VERIFY[Verify Alice's\nEd25519 signature]
+
+        FIND --> X25519
+        X25519 --> UWRAP
+        UWRAP --> DEC
+        DEC --> VERIFY
+    end
+
+    CEK --> RR1
+    CEK --> RR2
+    CEK --> RR3
+
+    WCEK1 --> ENV
+    WCEK2 --> ENV
+    WCEK3 --> ENV
+    EP --> ENV
+
+    ENV --> DECRYPT
+
+    style SENDER fill:#dbeafe,stroke:#3b82f6
+    style WRAP fill:#dcfce7,stroke:#22c55e
+    style ENVELOPE fill:#fef9c3,stroke:#eab308
+    style DECRYPT fill:#fce7f3,stroke:#ec4899

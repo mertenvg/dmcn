@@ -1,0 +1,46 @@
+---
+title: Trust Tier Evaluation — Incoming Message Flow
+---
+flowchart TD
+    MSG[Incoming message\narrives at relay node]
+
+    SIG{Valid cryptographic\nsignature from\nregistered identity?}
+    MSG --> SIG
+
+    SIG -->|No| DROP1["❌ Dropped at relay node\nNo delivery failure returned\nSender unaware"]
+    SIG -->|Yes| BLOCK
+
+    BLOCK{Sender pubkey on\npersonal blocklist\nor reputation feed?}
+
+    BLOCK -->|Yes| DROP2["❌ Silently dropped at relay node\nNo notification to sender\nNo notification to recipient"]
+    BLOCK -->|No| ALLOW
+
+    ALLOW{Sender meets\nallowlist criteria?}
+
+    ALLOW -->|Yes — contact list| PRIMARY["✅ Primary Inbox\nImmediate delivery"]
+    ALLOW -->|Yes — org identity match| PRIMARY
+    ALLOW -->|Yes — web-of-trust vouched| PRIMARY
+    ALLOW -->|Yes — opted in to unknown senders| PRIMARY
+    ALLOW -->|No| AUTO
+
+    AUTO{Auto-resolution\nrules match?}
+
+    AUTO -->|"≥ N whitelist contacts vouch\n(configurable, default 3)"| PRIMARY
+    AUTO -->|"Org domain previously\nallowlisted"| PRIMARY
+    AUTO -->|"Reputation score above\nconfigured threshold"| PRIMARY
+    AUTO -->|No match| PENDING
+
+    PENDING["⏳ Pending Queue\nSender identity displayed\nTrust provenance shown\nUser reviews"]
+
+    PENDING -->|Accept + allowlist| PRIMARY
+    PENDING -->|Accept this message only| INBOX_ONE["✅ Delivered once\nSender not allowlisted"]
+    PENDING -->|Reject + ignore| DROP3["❌ Discarded\nNo notification to sender"]
+    PENDING -->|Reject + blocklist| DROP4["❌ Discarded\nSender added to personal blocklist"]
+
+    style DROP1 fill:#fee2e2,stroke:#ef4444
+    style DROP2 fill:#fee2e2,stroke:#ef4444
+    style DROP3 fill:#fee2e2,stroke:#ef4444
+    style DROP4 fill:#fee2e2,stroke:#ef4444
+    style PRIMARY fill:#dcfce7,stroke:#22c55e
+    style INBOX_ONE fill:#dcfce7,stroke:#22c55e
+    style PENDING fill:#fef9c3,stroke:#eab308

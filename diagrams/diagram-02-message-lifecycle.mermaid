@@ -1,0 +1,50 @@
+---
+title: DMCN Message Lifecycle
+---
+sequenceDiagram
+    participant AC as Alice's Client
+    participant IR as Identity Registry
+    participant R1 as Relay Node 1
+    participant R2 as Relay Node 2
+    participant R3 as Relay Node 3
+    participant ST as Message Store
+    participant BC as Bob's Client
+
+    AC->>IR: Lookup bob@example.com
+    IR-->>AC: Bob's public key(s)
+
+    Note over AC: 1. Compose plaintext_message
+    Note over AC: 2. Sign with Alice's Ed25519 private key
+    Note over AC: 3. Generate random CEK
+    Note over AC: 4. Encrypt payload with CEK (AES-256-GCM)
+    Note over AC: 5. Wrap CEK for each of Bob's device sub-keys
+    Note over AC: 6. Assemble encrypted_envelope
+    Note over AC: 7. Wrap in 3-layer onion packet
+
+    AC->>R1: Onion packet (layer 1)
+    R1->>IR: Verify Alice's sender signature
+    IR-->>R1: Signature valid ✓
+
+    alt Signature invalid or sender unregistered
+        R1-->>AC: Drop — no delivery failure returned
+    end
+
+    R1->>R2: Onion packet (layer 2 — R1 knows only next hop)
+    R2->>R3: Onion packet (layer 3 — R2 knows only next hop)
+    R3->>ST: Store encrypted_envelope for Bob
+
+    Note over R1,R3: No relay node can read message content
+    Note over R1,R3: No relay node knows both origin and destination
+
+    BC->>ST: Authenticate + fetch message headers
+    ST-->>BC: stored_message_record headers
+    BC->>ST: Fetch encrypted_envelope
+    ST-->>BC: encrypted_envelope
+
+    Note over BC: 1. Locate recipient_record matching device sub-key
+    Note over BC: 2. X25519 exchange → unwrap CEK
+    Note over BC: 3. Decrypt payload with CEK
+    Note over BC: 4. Verify Alice's Ed25519 signature
+    Note over BC: 5. Display message ✓
+
+    BC-->>AC: delivery_receipt (optional, encrypted to Alice)

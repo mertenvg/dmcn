@@ -1,0 +1,37 @@
+---
+title: SMTP-DMCN Bridge Architecture — Outbound and Inbound Paths
+---
+flowchart LR
+    subgraph OUTBOUND["Outbound Path: DMCN → SMTP"]
+        direction TB
+        AC["Alice\nDMCN Client"]
+        BN_OUT["Bridge Node\n(registered DMCN identity)"]
+        SMTP_OUT["Legacy SMTP\nInfrastructure"]
+        BOB_LEG["Bob\nLegacy Email Inbox"]
+
+        AC -->|"1. Sign + encrypt to bridge pubkey\n(no DMCN key for Bob)"| BN_OUT
+        BN_OUT -->|"2. Verify Alice's signature\nDecrypt content\n⚠ Bridge sees plaintext"| BN_OUT
+        BN_OUT -->|"3. Reconstruct SMTP message\nFrom: alice@example.com\nSender: bridge@bridge.dmcn.net\nDKIM-sign with bridge domain key"| SMTP_OUT
+        SMTP_OUT -->|"4. MX delivery"| BOB_LEG
+    end
+
+    subgraph INBOUND["Inbound Path: SMTP → DMCN"]
+        direction TB
+        CAROL_LEG["Carol\nLegacy Email Sender"]
+        BN_IN["Bridge Node\nSMTP Listener"]
+        CHECKS["Authentication Checks\nSPF · DKIM · DMARC\nRBL reputation lookup"]
+        CLASSIFY["Trust Classification\n✓ Verified Legacy\n~ Unverified Legacy\n✗ Suspicious"]
+        WRAP["Wrap in DMCN envelope\nSigned by bridge key\nEncrypted to Alice's pubkey"]
+        AC_IN["Alice\nDMCN Client\n(Legacy section)"]
+
+        CAROL_LEG -->|"SMTP to bridge address\nalice@bridge.dmcn.net"| BN_IN
+        BN_IN --> CHECKS
+        CHECKS -->|"Hard fail → drop"| DROP["❌ Dropped\nDelivery failure to sender"]
+        CHECKS --> CLASSIFY
+        CLASSIFY --> WRAP
+        WRAP -->|"Via DMCN transport layer"| AC_IN
+    end
+
+    style OUTBOUND fill:#dbeafe,stroke:#3b82f6
+    style INBOUND fill:#dcfce7,stroke:#22c55e
+    style DROP fill:#fee2e2,stroke:#ef4444

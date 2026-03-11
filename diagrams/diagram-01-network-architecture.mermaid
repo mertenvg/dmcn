@@ -1,0 +1,52 @@
+---
+title: DMCN Network Architecture
+---
+graph TB
+    subgraph USERS["User Layer"]
+        UA[Alice\nDMCN Client]
+        UB[Bob\nDMCN Client]
+    end
+
+    subgraph IDENTITY["Identity Layer"]
+        direction LR
+        DHT1[Registry Node]
+        DHT2[Registry Node]
+        DHT3[Registry Node]
+        DHT1 <-->|Kademlia DHT| DHT2
+        DHT2 <-->|Kademlia DHT| DHT3
+        DHT1 <-->|Kademlia DHT| DHT3
+    end
+
+    subgraph TRANSPORT["Transport Layer"]
+        direction LR
+        R1[Relay Node\nHop 1]
+        R2[Relay Node\nHop 2]
+        R3[Relay Node\nHop 3]
+        R1 -->|Onion packet| R2
+        R2 -->|Onion packet| R3
+    end
+
+    subgraph STORAGE["Storage & Delivery Layer"]
+        STORE[Encrypted\nMessage Store]
+    end
+
+    subgraph BRIDGE["Bridge Layer (Transitional)"]
+        BN[Bridge Node\nSMTP ↔ DMCN]
+    end
+
+    LEGACY[Legacy Email\nSMTP Recipient]
+
+    UA -->|1. Sign + encrypt message| TRANSPORT
+    UA -->|Lookup recipient pubkey| IDENTITY
+    TRANSPORT -->|Verified messages only| STORAGE
+    STORAGE -->|Fetch + decrypt| UB
+    UA -->|DMCN → SMTP| BRIDGE
+    BRIDGE -->|SMTP delivery| LEGACY
+    LEGACY -->|Inbound SMTP| BRIDGE
+    BRIDGE -->|Classified + wrapped| STORAGE
+
+    style IDENTITY fill:#dbeafe,stroke:#3b82f6
+    style TRANSPORT fill:#dcfce7,stroke:#22c55e
+    style STORAGE fill:#fef9c3,stroke:#eab308
+    style BRIDGE fill:#fce7f3,stroke:#ec4899
+    style USERS fill:#f1f5f9,stroke:#94a3b8
