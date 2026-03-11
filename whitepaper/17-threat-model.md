@@ -516,7 +516,7 @@ conversation.
 #### 17.8.1 Nature of the Threat
 
 
-The SMTP-DMCN bridge architecture (Section 10) is a necessary component
+The SMTP-DMCN bridge architecture (Section 11) is a necessary component
 of any viable transition strategy, but it reintroduces several trust and
 security challenges that the native DMCN architecture otherwise
 eliminates. Bridge nodes represent the interface between the trustless
