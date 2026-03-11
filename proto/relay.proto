@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package dmcn.relay;
+
+import "message.proto";
+
+option go_package = "github.com/mertenvg/dmcn/internal/proto/dmcnpb;dmcnpb";
+
+// RelayRequest is the top-level request wrapper for relay protocol operations.
+// Sent over libp2p streams using length-prefixed protobuf encoding.
+message RelayRequest {
+  oneof request {
+    StoreRequest store = 1;
+    FetchInit fetch_init = 2;
+    FetchProof fetch_proof = 3;
+    AckRequest ack = 4;
+    PingRequest ping = 5;
+  }
+}
+
+// RelayResponse is the top-level response wrapper for relay protocol operations.
+message RelayResponse {
+  oneof response {
+    StoreResponse store = 1;
+    FetchChallenge fetch_challenge = 2;
+    FetchResponse fetch = 3;
+    AckResponse ack = 4;
+    PingResponse ping = 5;
+    ErrorResponse error = 6;
+  }
+}
+
+// StoreRequest asks the relay to store an encrypted envelope for a recipient.
+// The sender must be registered in the DHT registry.
+message StoreRequest {
+  string sender_address = 1;
+  bytes sender_signature = 2;                // Ed25519 signature over envelope hash
+  dmcn.message.EncryptedEnvelope envelope = 3;
+}
+
+// StoreResponse confirms successful storage.
+message StoreResponse {
+  bytes envelope_hash = 1;   // SHA-256 of serialized EncryptedEnvelope
+}
+
+// FetchInit begins the FETCH authentication flow.
+message FetchInit {
+  string address = 1;
+}
+
+// FetchChallenge is sent by the server with a random nonce for the client to sign.
+message FetchChallenge {
+  bytes nonce = 1;   // 32 bytes random challenge
+}
+
+// FetchProof provides the signed challenge nonce to authenticate the recipient.
+message FetchProof {
+  string address = 1;
+  bytes nonce = 2;
+  bytes signature = 3;   // Ed25519 signature over nonce
+}
+
+// FetchResponse returns pending envelopes for the authenticated recipient.
+message FetchResponse {
+  repeated dmcn.message.EncryptedEnvelope envelopes = 1;
+  repeated bytes envelope_hashes = 2;  // SHA-256 hashes corresponding to each envelope
+}
+
+// AckRequest confirms successful decryption of an envelope.
+message AckRequest {
+  bytes envelope_hash = 1;   // SHA-256 of the envelope being acknowledged
+}
+
+// AckResponse confirms the ACK was processed.
+message AckResponse {
+  bool success = 1;
+}
+
+// PingRequest is a liveness check.
+message PingRequest {}
+
+// PingResponse returns relay node metadata.
+message PingResponse {
+  string version = 1;
+  int64 uptime_seconds = 2;
+  uint32 stored_envelopes = 3;
+}
+
+// ErrorResponse is returned when an operation fails.
+message ErrorResponse {
+  string code = 1;
+  string message = 2;
+}
