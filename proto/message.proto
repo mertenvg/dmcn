@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package dmcn.message;
+
+option go_package = "github.com/mertenvg/dmcn/internal/proto/dmcnpb;dmcnpb";
+
+// MessageBody holds the content of a message.
+// See whitepaper Section 15.3.1.
+message MessageBody {
+  string content_type = 1;   // MIME type, e.g. "text/plain"
+  bytes content = 2;         // UTF-8 encoded body text
+}
+
+// AttachmentRecord describes an attachment within a message.
+// See whitepaper Section 15.3.1.
+message AttachmentRecord {
+  bytes attachment_id = 1;   // 16 bytes UUID
+  string filename = 2;
+  string content_type = 3;   // MIME type
+  uint64 size_bytes = 4;
+  bytes content_hash = 5;    // 32 bytes SHA-256 of plaintext content
+  bytes content = 6;         // attachment content (encrypted separately)
+}
+
+// PlaintextMessage represents a composed message before signing or encryption.
+// See whitepaper Section 15.3.1.
+message PlaintextMessage {
+  uint32 version = 1;
+  bytes message_id = 2;            // 16 bytes UUID
+  bytes thread_id = 3;             // 16 bytes UUID
+  string sender_address = 4;
+  bytes sender_public_key = 5;     // 32 bytes Ed25519
+  string recipient_address = 6;
+  int64 sent_at = 7;               // Unix seconds
+  string subject = 8;
+  MessageBody body = 9;
+  repeated AttachmentRecord attachments = 10;
+  bytes reply_to_id = 11;          // 16 bytes UUID; empty = not a reply
+}
+
+// SignedMessage wraps a PlaintextMessage with the sender's Ed25519 signature.
+// See whitepaper Section 15.3.2.
+message SignedMessage {
+  PlaintextMessage plaintext = 1;
+  bytes sender_signature = 2;     // 64 bytes Ed25519 sig over canonical serialization of plaintext
+}
+
+// RecipientRecord holds the wrapped CEK for a single recipient device.
+// See whitepaper Section 15.3.3.
+message RecipientRecord {
+  bytes device_id = 1;            // 16 bytes UUID
+  bytes recipient_x_pub = 2;     // 32 bytes X25519 public key of recipient
+  bytes ephemeral_x_pub = 3;     // 32 bytes per-recipient ephemeral X25519 public key
+  bytes wrapped_cek = 4;          // AES-256-GCM ciphertext of CEK
+  bytes cek_nonce = 5;            // 12 bytes nonce for CEK wrapping
+  bytes cek_tag = 6;              // 16 bytes GCM auth tag for CEK wrapping
+}
+
+// EncryptedEnvelope is the outer transport structure for encrypted messages.
+// See whitepaper Section 15.3.3.
+message EncryptedEnvelope {
+  uint32 version = 1;
+  bytes message_id = 2;                   // 16 bytes UUID
+  repeated RecipientRecord recipients = 3;
+  bytes encrypted_payload = 4;            // AES-256-GCM ciphertext of SignedMessage
+  bytes payload_nonce = 5;                // 12 bytes nonce for payload encryption
+  bytes payload_tag = 6;                  // 16 bytes GCM auth tag for payload
+  uint32 payload_size_class = 7;          // padded size bucket
+  int64 created_at = 8;                   // Unix seconds
+  bytes ratchet_pub_key = 9;              // 32 bytes; zero in protocol v1
+}
