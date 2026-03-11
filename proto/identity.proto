@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package dmcn.identity;
+
+option go_package = "github.com/mertenvg/dmcn/internal/proto/dmcnpb;dmcnpb";
+
+// VerificationTier represents the level of identity verification.
+// See whitepaper Section 15.2.2.
+enum VerificationTier {
+  VERIFICATION_TIER_UNVERIFIED = 0;
+  VERIFICATION_TIER_PROVIDER_HOSTED = 1;
+  VERIFICATION_TIER_DOMAIN_DNS = 2;
+  VERIFICATION_TIER_DANE = 3;
+}
+
+// AttestationType represents the method of attestation.
+// See whitepaper Section 15.2.3.
+enum AttestationType {
+  ATTESTATION_TYPE_UNSPECIFIED = 0;
+  ATTESTATION_TYPE_IN_PERSON = 1;
+  ATTESTATION_TYPE_FINGERPRINT = 2;
+  ATTESTATION_TYPE_NETWORK = 3;
+  ATTESTATION_TYPE_ORGANISATIONAL = 4;
+}
+
+// AttestationRecord represents a web-of-trust attestation.
+// See whitepaper Section 15.2.3.
+message AttestationRecord {
+  string attester_address = 1;
+  bytes attester_pubkey = 2;    // 32 bytes Ed25519
+  string subject_address = 3;
+  bytes subject_pubkey = 4;     // 32 bytes Ed25519
+  AttestationType attestation_type = 5;
+  int64 attested_at = 6;        // Unix seconds
+  int64 expires_at = 7;         // Unix seconds; 0 = no expiry
+  bytes signature = 8;          // 64 bytes Ed25519 sig over all preceding fields
+}
+
+// IdentityRecord is a self-certifying identity binding.
+// See whitepaper Section 15.2.2.
+message IdentityRecord {
+  uint32 version = 1;
+  string address = 2;                    // local@domain
+  bytes ed25519_public_key = 3;          // 32 bytes
+  bytes x25519_public_key = 4;           // 32 bytes
+  int64 created_at = 5;                  // Unix seconds
+  int64 expires_at = 6;                  // Unix seconds; 0 = no expiry
+  repeated string relay_hints = 7;
+  VerificationTier verification_tier = 8;
+  repeated AttestationRecord attestations = 9;
+  bytes self_signature = 10;             // 64 bytes Ed25519 sig over all preceding fields
+}
