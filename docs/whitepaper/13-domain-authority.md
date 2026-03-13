@@ -47,7 +47,7 @@ The `policy_flags` bitmask allows domain authorities to declare administrative p
 
 | Flag | Value | Meaning |
 |---|---|---|
-| `REQUIRE_DOMAIN_COUNTERSIG` | 0x01 | Identity records under this domain must carry a valid domain countersignature to be treated as verified |
+| `DOMAIN_APPROVAL_REQUIRED` | 0x01 | Identity records under this domain must carry a valid domain countersignature to be treated as verified |
 | `REJECT_UNMANAGED` | 0x02 | Relay nodes must reject messages from addresses under this domain that do not carry a valid domain countersignature |
 | `ARCHIVE_REQUIRED` | 0x04 | All messages to/from this domain must be routed through an approved archive bridge (see Section 13.5) |
 | `MANAGED_DEVICES_ONLY` | 0x08 | Identities under this domain may only be registered from device identifiers pre-approved by the domain authority |
@@ -57,7 +57,7 @@ The `policy_flags` bitmask allows domain authorities to declare administrative p
 
 ### 13.2 Identity Provisioning Under a Managed Domain
 
-When `REQUIRE_DOMAIN_COUNTERSIG` is set, an individual identity record under the domain is only treated as fully verified if it carries a countersignature from the domain authority in addition to the individual's own self-signature.
+When `DOMAIN_APPROVAL_REQUIRED` is set, an individual identity record under the domain is only treated as fully verified if it carries a countersignature from the domain authority in addition to the individual's own self-signature.
 
 The provisioning flow is:
 
@@ -92,7 +92,7 @@ domain_revocation_record {
 }
 ```
 
-Once a domain revocation record is published to the registry, relay nodes enforcing `REQUIRE_DOMAIN_COUNTERSIG` or `REJECT_UNMANAGED` will reject messages from the revoked address. The revocation propagates through the DHT within the same timeframe as any other registry update.
+Once a domain revocation record is published to the registry, relay nodes enforcing `DOMAIN_APPROVAL_REQUIRED` or `REJECT_UNMANAGED` will reject messages from the revoked address. The revocation propagates through the DHT within the same timeframe as any other registry update.
 
 The revoked user's underlying DMCN identity — their key pair — is unaffected. They retain their cryptographic identity and can register a new address under a personal domain or provider-hosted address. What they lose is the authorised binding to the organisation's domain.
 
@@ -106,7 +106,7 @@ When a domain authority revokes an address, the allowlists of users who had that
 
 Without a domain authority, nothing prevents two people from both attempting to register as `cfo@company.com`. The first registration wins in the DHT, leaving the domain with no recourse and creating a potential for namespace squatting or impersonation within the domain.
 
-When a DAR is published with `REQUIRE_DOMAIN_COUNTERSIG`, this problem is structurally eliminated. A registration attempt for an address under a managed domain without the required countersignature is rejected by the registry as unverified. Only addresses that have passed through the domain authority's provisioning flow carry valid countersignatures and are accepted as verified identities under that domain.
+When a DAR is published with `DOMAIN_APPROVAL_REQUIRED`, this problem is structurally eliminated. A registration attempt for an address under a managed domain without the required countersignature is rejected by the registry as unverified. Only addresses that have passed through the domain authority's provisioning flow carry valid countersignatures and are accepted as verified identities under that domain.
 
 Relay nodes enforce this at message receipt: a message purporting to come from `cfo@company.com` without a valid domain countersignature from `company.com`'s registered DAR is treated as unverified and routed to the recipient's pending queue regardless of the individual self-signature. The display name and address string are the same; the verification indicator is absent, which is the signal the recipient's client surfaces.
 

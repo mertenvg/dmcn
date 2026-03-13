@@ -64,8 +64,13 @@ A signed registry entry published by a domain owner that declares the domain's a
 
 ---
 
+**Domain Approval Required (`DOMAIN_APPROVAL_REQUIRED`)**
+A policy flag on the Domain Authority Record that requires all identity records under the domain to carry a valid domain countersignature before they are treated as verified. A registration attempt for an address under a domain with this flag set, without the required countersignature, is rejected by the registry as unverified. Relay nodes enforcing this flag reject messages from addresses that lack a valid countersignature regardless of the individual's own self-signature. Renamed from `REQUIRE_DOMAIN_COUNTERSIG` in protocol version 2 for consistency with the guardian trust control flag vocabulary. See Section 13.1.1 and Section 13.4.
+
+---
+
 **Domain Countersignature**
-A cryptographic signature applied to an individual identity record by a domain authority, certifying that the address has been provisioned through the organisation's authorised process. Relay nodes and clients check for a valid domain countersignature when the domain's Domain Authority Record sets the `REQUIRE_DOMAIN_COUNTERSIG` policy flag. An identity record without a valid countersignature under a managed domain is treated as unverified regardless of the individual's own self-signature. The domain authority can withdraw the countersignature at any time through a domain revocation record, immediately depro­visioning the address. See Section 13.2 and Section 13.3.
+A cryptographic signature applied to an individual identity record by a domain authority, certifying that the address has been provisioned through the organisation's authorised process. Relay nodes and clients check for a valid domain countersignature when the domain's Domain Authority Record sets the `DOMAIN_APPROVAL_REQUIRED` policy flag. An identity record without a valid countersignature under a managed domain is treated as unverified regardless of the individual's own self-signature. The domain authority can withdraw the countersignature at any time through a domain revocation record, immediately depro­visioning the address. See Section 13.2 and Section 13.3.
 
 ---
 
@@ -94,8 +99,28 @@ A cryptographic property whereby compromise of a long-term private key does not 
 
 ---
 
+**Guardian Approval Required (`GUARDIAN_APPROVAL_REQUIRED`)**
+A policy flag in the `guardian_policy` record attached to an individual identity record, indicating that allowlist entries created by that identity require a countersignature from the designated guardian authority before becoming effective. Without a valid guardian countersignature, an allowlist entry is present but inert — the named sender is treated as unknown and routed to the pending queue. Blocklist entries are unaffected by this flag and do not require countersignature. The flag lapses automatically when the `valid_until` timestamp in the `guardian_policy` record is exceeded. See Section 14.5.
+
+---
+
+**Guardian Countersignature**
+A cryptographic signature produced by the guardian authority that activates a pending allowlist entry under a `GUARDIAN_APPROVAL_REQUIRED` policy. The countersignature is delivered to the subject's client through standard DMCN message transport following guardian approval, and is attached to the allowlist entry as a `guardian_countersignature` field. An allowlist entry is effective if and only if its guardian countersignature is present, valid, and references a guardian key matching the active `guardian_policy` record. See Section 14.5.3.
+
+---
+
+**Guardian Policy Record**
+A signed record attached to an individual DMCN identity record in the DHT that places the identity's trust relationship formation under the supervision of a designated guardian authority. Published by the domain authority at provisioning time and signed by the domain authority's Ed25519 key. Contains the guardian's public key, a `valid_until` timestamp governing automatic lapse, and a `policy_flags` bitmask controlling the specific behaviours in effect. A `guardian_policy` record without a valid domain authority signature is rejected by conformant clients. See Section 14.5.1.
+
+---
+
 **Pending Queue**
 The default destination in the DMCN client for messages from senders who appear on neither the recipient's allowlist nor their blocklist. The pending queue is not a curated list — senders arrive there by the absence of any prior decision about them, not by being added to anything. Messages in the pending queue are held for user review, displayed with the sender's verified cryptographic identity and any network trust signals available. The recipient can allowlist the sender, accept the individual message, ignore it, or blocklist the sender. See also: *Allowlist*, *Blocklist*.
+
+---
+
+**Pending Allowlist Entry**
+An allowlist entry that exists in a user's trust list but is not yet effective because a required countersignature is absent or invalid. Arises under `GUARDIAN_APPROVAL_REQUIRED` when a subject adds a contact before guardian approval has been granted. A sender named in a pending allowlist entry is treated as unknown — pending queue behaviour applies — until the countersignature is provided and the entry becomes effective. See Section 14.5.3.
 
 ---
 

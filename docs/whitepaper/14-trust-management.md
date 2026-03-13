@@ -107,16 +107,13 @@ The pending queue is not a list that senders are added to — it is where messag
 
 #### 14.2.1 Pending Queue Delivery Semantics
 
+Messages held in the pending queue are presented in a section of the client visually distinct from the primary inbox.
 
-Messages held in the pending queue are presented in a section of the client visually distinct from the primary inbox. The client displays the sender's verified DMCN identity, the trust provenance of the sender in the network (whether any of the user's contacts have vouched for them, and if so how many), and a summary of the message sufficient to make an informed accept-or-reject decision — without requiring the user to fully open and read the message first.
+**Protocol-level content visibility rule:** For any message whose sender does not hold an effective allowlist entry with the recipient, the client MUST display the sender's verified DMCN identity and the message subject line, and MUST NOT render the message body or any attachment content until the sender is allowlisted. This is a protocol requirement, not a client implementation guideline. Clients that expose message body content prior to allowlisting are non-conformant.
 
-From the pending queue the user has four options for each pending
-message: Accept and allowlist the sender (promoting all future messages
-to the primary inbox), Accept this message only (delivering the message
-without allowlisting the sender), Reject and ignore (discarding the
-message without any notification to the sender), or Reject and blocklist
-(discarding the message and adding the sender to the blocklist to
-prevent future delivery attempts).
+The rationale for this rule is twofold. First, it prevents senders from using message content as a vector to manipulate the recipient's trust decision — unsolicited content cannot be used to manufacture urgency, distress, or social pressure before the recipient has consented to receive it. Second, it provides a consistent privacy guarantee for senders: message content is not exposed to infrastructure or clients that have not yet established a trust relationship with the sender's identity.
+
+From the pending queue the user has four options for each pending message: Accept and allowlist the sender (promoting all future messages to the primary inbox and unlocking content for the current message), Accept this message only (unlocking content for this message without allowlisting the sender, so future messages from the same sender return to the pending queue), Reject and ignore (discarding the message without any notification to the sender), or Reject and blocklist (discarding the message and adding the sender's cryptographic identity to the personal blocklist).
 
 
 #### 14.2.2 Pending Queue Auto-Resolution Rules
@@ -273,6 +270,131 @@ from profitable to unprofitable.
 | Pending Queue | Verified but unknown sender | Pending queue, user review | No — state not stored | No |
 | Personal Blocklist | Explicitly rejected sender | Silently dropped at relay | Yes — key blocked | No (private) |
 | Shared Reputation Feed | Community-reported bad actor | Dropped per feed policy | Yes — persistent listing | Yes — community opt-in |
+
+---
+
+### 14.5 Guardian Trust Controls
+
+The trust management model described in Sections 14.1–14.3 assumes full user autonomy: each identity manages its own allowlist, pending queue, and blocklist independently. This assumption is appropriate for adult users operating their own identities, but it does not accommodate accounts provisioned for minors or other dependants, where a supervising party — a parent, legal guardian, or family domain authority — has a legitimate interest in overseeing trust relationship formation.
+
+The DMCN addresses this through a **guardian trust control** model: a lightweight extension to the identity record that places allowlist entries under countersignature requirement, while leaving the child's cryptographic identity fully intact and their blocklist under their own control. The guardian never holds the child's private key, never has access to message content, and cannot read the child's trust list. Their authority is limited to approving or rejecting the child's requests to form new trust relationships.
+
+> **Design Principle**
+> *Guardian trust controls give supervising parties authority over trust relationship formation, not over identity or message content. The child's cryptographic self-sovereignty is preserved. The guardian countersigns allowlist entries; they do not co-hold keys.*
+
+---
+
+#### 14.5.1 The Guardian Policy Record
+
+Guardian trust controls are activated by the presence of a `guardian_policy` record attached to an identity record in the DHT. This record is published by the domain authority at address provisioning time and is signed by the domain authority's Ed25519 key.
+
+```
+guardian_policy {
+    version:                    uint32
+    subject_address:            string       // the address this policy applies to
+    subject_ed25519_pubkey:     bytes[32]    // Ed25519 public key of the subject identity
+    guardian_ed25519_pubkey:    bytes[32]    // Ed25519 public key of the countersigning authority
+    guardian_address:           string       // DMCN address of the guardian identity
+    valid_until:                uint64       // Unix timestamp; 0 = indefinite
+    policy_flags:               uint32       // bitmask; see Section 14.5.2
+    domain_authority_signature: bytes[64]    // Ed25519 signature by the DAR authority over all preceding fields
+}
+```
+
+The `guardian_ed25519_pubkey` identifies the key whose countersignature is required for allowlist entries to become effective. This is typically the domain authority key (for a family provider scenario) or a parent's own DMCN identity key (for a self-hosted family domain scenario). Both are valid; the protocol makes no distinction between them.
+
+The `domain_authority_signature` anchors the policy to the domain's administrative authority. A `guardian_policy` record without a valid domain authority signature is rejected by conformant clients.
+
+---
+
+#### 14.5.2 Policy Flags
+
+The `policy_flags` bitmask supports the following flags for the guardian policy:
+
+| Flag | Value | Behaviour |
+|---|---|---|
+| `GUARDIAN_APPROVAL_REQUIRED` | `0x01` | Allowlist entries require guardian countersignature to become effective |
+| `PENDING_NOTIFY_GUARDIAN` | `0x02` | Guardian receives a notification when a new sender reaches the subject's pending queue |
+| `PENDING_CONTENT_GATE_STRICT` | `0x04` | Message content is withheld from the subject until the guardian countersigns (guardian-first mode); without this flag, the subject sees sender and subject line and initiates the approval request (child-initiated mode) |
+
+`GUARDIAN_APPROVAL_REQUIRED` is the foundational flag. The remaining flags extend it. A `guardian_policy` record with no flags set is valid but has no effect.
+
+---
+
+#### 14.5.3 Allowlist Countersignature Requirement
+
+When `GUARDIAN_APPROVAL_REQUIRED` is set, an allowlist entry added by the subject identity is **pending** until it carries a valid countersignature from the `guardian_ed25519_pubkey`. A pending allowlist entry exists in the subject's allowlist but is inert: the sender named in the entry is treated as unknown (pending queue behaviour) until the countersignature is provided.
+
+A conformant allowlist entry under guardian control carries an additional field:
+
+```
+guardian_countersignature {
+    guardian_ed25519_pubkey:    bytes[32]    // must match guardian_policy.guardian_ed25519_pubkey
+    approved_at:                uint64       // Unix timestamp of approval
+    signature:                  bytes[64]    // Ed25519 signature by guardian over:
+                                             //   allowlist_entry fields +
+                                             //   guardian_ed25519_pubkey +
+                                             //   approved_at
+}
+```
+
+An allowlist entry is effective if and only if:
+- The `guardian_countersignature` is present, and
+- The `guardian_ed25519_pubkey` in the countersignature matches the `guardian_ed25519_pubkey` in the active `guardian_policy` record, and
+- The signature is valid
+
+A client receiving a message from a sender whose allowlist entry is pending (countersignature absent or invalid) applies standard pending queue behaviour for that sender, regardless of the allowlist entry's presence.
+
+**Blocklist entries do not require countersignature.** Either the subject or the guardian may add a sender to the blocklist unilaterally. A sender blocked by the guardian is treated as blocked for the subject even if the subject has not independently blocklisted them. This union behaviour means guardian blocklist entries propagate downward without requiring any action from the subject.
+
+---
+
+#### 14.5.4 Approval Flow
+
+The approval flow under `GUARDIAN_APPROVAL_REQUIRED` operates as follows:
+
+1. An unknown sender's message arrives and is held in the subject's pending queue. The subject's client displays the sender's verified DMCN identity and subject line per the content visibility rule in Section 14.2.1. Message body content is not rendered.
+
+2. The subject may initiate an approval request: a signed notification sent to the guardian's DMCN address identifying the sender and requesting countersignature of an allowlist entry.
+
+3. The guardian's client presents the approval request with the sender's verified identity, trust provenance signals (web-of-trust vouching, shared reputation feed status), and the subject line of the pending message. The guardian approves or rejects.
+
+4. On approval, the guardian's client produces a `guardian_countersignature` and delivers it to the subject's client through the standard DMCN message transport. The subject's client attaches the countersignature to the allowlist entry, which becomes effective immediately.
+
+5. On rejection, the subject's client may optionally notify the subject that the request was declined, at the guardian's discretion.
+
+If `PENDING_CONTENT_GATE_STRICT` is set, step 2 is modified: the approval request is sent to the guardian automatically on message arrival, and the subject is not notified of the pending message until the guardian has made a decision. This implements a guardian-first content gate appropriate for younger children, where the subject should not be aware of unsolicited contact attempts until a guardian has reviewed them.
+
+---
+
+#### 14.5.5 Policy Transition and Lapse
+
+The `valid_until` field in the `guardian_policy` record governs automatic lapse. When the current time exceeds `valid_until`:
+
+- The `guardian_policy` record becomes inert. Clients treat it as absent.
+- No action is required from either the subject or the guardian for lapse to take effect.
+- Existing allowlist entries that carry valid countersignatures remain effective — the approval already occurred and is not retroactively withdrawn.
+- New allowlist entries no longer require countersignature. The subject gains full trust autonomy.
+
+A `valid_until` value of `0` indicates an indefinite policy with no automatic lapse. The domain authority may explicitly revoke or modify the `guardian_policy` at any time before `valid_until` by publishing an updated identity record. Early revocation grants the subject full autonomy ahead of schedule; extension defers it.
+
+> **Protocol Scope Note**
+> *The protocol does not mandate any particular `valid_until` value or enforce age-appropriate transition. A domain authority may set `valid_until: 0` for any identity. Determination of appropriate policy duration is a matter for the domain authority, the provider's terms of service, and applicable jurisdictional requirements. The DMCN provides the mechanism; it does not prescribe the policy.*
+
+---
+
+#### 14.5.6 Relationship to Domain Authority Flags
+
+Guardian trust controls use a distinct flag vocabulary from the domain-level provisioning controls defined in Section 13. The two flag sets operate at different layers and must not be conflated:
+
+| Flag | Layer | Governs |
+|---|---|---|
+| `DOMAIN_APPROVAL_REQUIRED` | Domain Authority Record (DAR) | Whether an identity may be provisioned under the domain namespace |
+| `GUARDIAN_APPROVAL_REQUIRED` | Identity record (`guardian_policy`) | Whether a provisioned identity may form trust relationships autonomously |
+
+An account provisioned for a child under a family domain would typically carry both: `DOMAIN_APPROVAL_REQUIRED` ensures the child's address is domain-authority-countersigned at registration (consistent with all managed identities under the domain), and `GUARDIAN_APPROVAL_REQUIRED` imposes ongoing trust relationship supervision specific to that identity. An adult employee account under a corporate domain would carry `DOMAIN_APPROVAL_REQUIRED` but not `GUARDIAN_APPROVAL_REQUIRED`.
+
+The flags are orthogonal. Either may be set independently of the other.
 
 ---
 
