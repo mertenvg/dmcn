@@ -314,8 +314,8 @@ The `policy_flags` bitmask supports the following flags for the guardian policy:
 | Flag | Value | Behaviour |
 |---|---|---|
 | `GUARDIAN_APPROVAL_REQUIRED` | `0x01` | Allowlist entries require guardian countersignature to become effective |
-| `PENDING_NOTIFY_GUARDIAN` | `0x02` | Guardian receives a notification when a new sender reaches the subject's pending queue |
-| `PENDING_CONTENT_GATE_STRICT` | `0x04` | Message content is withheld from the subject until the guardian countersigns (guardian-first mode); without this flag, the subject sees sender and subject line and initiates the approval request (child-initiated mode) |
+| `GUARDIAN_NOTIFY_PENDING` | `0x02` | Guardian receives a notification when a new sender reaches the subject's pending queue |
+| `GUARDIAN_CONTENT_GATE_STRICT` | `0x04` | Message content is withheld from the subject until the guardian countersigns (guardian-first mode); without this flag, the subject sees sender and subject line and initiates the approval request (child-initiated mode) |
 
 `GUARDIAN_APPROVAL_REQUIRED` is the foundational flag. The remaining flags extend it. A `guardian_policy` record with no flags set is valid but has no effect.
 
@@ -363,7 +363,7 @@ The approval flow under `GUARDIAN_APPROVAL_REQUIRED` operates as follows:
 
 5. On rejection, the subject's client may optionally notify the subject that the request was declined, at the guardian's discretion.
 
-If `PENDING_CONTENT_GATE_STRICT` is set, step 2 is modified: the approval request is sent to the guardian automatically on message arrival, and the subject is not notified of the pending message until the guardian has made a decision. This implements a guardian-first content gate appropriate for younger children, where the subject should not be aware of unsolicited contact attempts until a guardian has reviewed them.
+If `GUARDIAN_CONTENT_GATE_STRICT` is set, step 2 is modified: the approval request is sent to the guardian automatically on message arrival, and the subject is not notified of the pending message until the guardian has made a decision. This implements a guardian-first content gate appropriate for younger children, where the subject should not be aware of unsolicited contact attempts until a guardian has reviewed them.
 
 ---
 

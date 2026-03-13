@@ -50,7 +50,7 @@ The `policy_flags` bitmask allows domain authorities to declare administrative p
 | `DOMAIN_APPROVAL_REQUIRED` | 0x01 | Identity records under this domain must carry a valid domain countersignature to be treated as verified |
 | `REJECT_UNMANAGED` | 0x02 | Relay nodes must reject messages from addresses under this domain that do not carry a valid domain countersignature |
 | `ARCHIVE_REQUIRED` | 0x04 | All messages to/from this domain must be routed through an approved archive bridge (see Section 13.5) |
-| `MANAGED_DEVICES_ONLY` | 0x08 | Identities under this domain may only be registered from device identifiers pre-approved by the domain authority |
+| `DEVICE_MANAGEMENT_REQUIRED` | 0x08 | Identities under this domain may only be registered from device identifiers pre-approved by the domain authority |
 | `SUBDOMAIN_DELEGATION` | 0x10 | Sub-authority delegation is permitted; sub-authority records in this DAR are valid |
 
 ---
