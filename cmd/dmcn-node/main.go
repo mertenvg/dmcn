@@ -12,13 +12,20 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/mertenvg/logr/v2"
+
 	"github.com/mertenvg/dmcn/internal/core/identity"
 	"github.com/mertenvg/dmcn/internal/core/message"
 	"github.com/mertenvg/dmcn/internal/keystore"
 	"github.com/mertenvg/dmcn/internal/node"
 )
 
+var log logr.Logger
+
 func main() {
+	logr.AddWriter(os.Stderr, logr.WithFormatter(logr.FormatWithColours), logr.WithFilter(logr.Verbose))
+	log = logr.With(logr.M("component", "cli"))
+
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
@@ -72,9 +79,12 @@ func main() {
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		log.Errorf("%v", err)
+		logr.Wait()
 		os.Exit(1)
 	}
+
+	logr.Wait()
 }
 
 func printUsage() {
@@ -136,17 +146,16 @@ func cmdStart(args []string) error {
 	defer n.Close()
 
 	addrs := n.Addrs()
-	fmt.Printf("DMCN node started\n")
-	fmt.Printf("Peer ID: %s\n", n.PeerID())
+	log.Infof("DMCN node started, peer ID: %s", n.PeerID())
 	for _, addr := range addrs {
-		fmt.Printf("Listening: %s\n", addr)
+		log.Infof("listening: %s", addr)
 	}
 
 	// Wait for interrupt
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
-	fmt.Println("\nShutting down...")
+	log.Info("shutting down...")
 
 	return nil
 }
@@ -180,9 +189,9 @@ func cmdIdentityGenerate(args []string) error {
 		return fmt.Errorf("create identity record: %w", err)
 	}
 
-	fmt.Printf("Identity generated for %s\n", address)
-	fmt.Printf("Fingerprint: %s\n", rec.Fingerprint())
-	fmt.Printf("Stored in: %s\n", keystorePath)
+	log.Successf("identity generated for %s", address)
+	log.Infof("fingerprint: %s", rec.Fingerprint())
+	log.Infof("stored in: %s", keystorePath)
 
 	return nil
 }
@@ -234,7 +243,7 @@ func cmdIdentityRegister(args []string) error {
 		return fmt.Errorf("register: %w", err)
 	}
 
-	fmt.Printf("Identity registered: %s\n", address)
+	log.Successf("identity registered: %s", address)
 	return nil
 }
 
@@ -264,16 +273,16 @@ func cmdIdentityLookup(args []string) error {
 		return fmt.Errorf("lookup: %w", err)
 	}
 
-	fmt.Printf("Address: %s\n", rec.Address)
-	fmt.Printf("Fingerprint: %s\n", rec.Fingerprint())
-	fmt.Printf("Created: %s\n", rec.CreatedAt)
+	log.Infof("address: %s", rec.Address)
+	log.Infof("fingerprint: %s", rec.Fingerprint())
+	log.Infof("created: %s", rec.CreatedAt)
 	if !rec.ExpiresAt.IsZero() {
-		fmt.Printf("Expires: %s\n", rec.ExpiresAt)
+		log.Infof("expires: %s", rec.ExpiresAt)
 	}
 	if err := rec.Verify(); err != nil {
-		fmt.Printf("Signature: INVALID (%v)\n", err)
+		log.Warnf("signature: INVALID (%v)", err)
 	} else {
-		fmt.Printf("Signature: valid\n")
+		log.Successf("signature: valid")
 	}
 
 	return nil
@@ -347,8 +356,8 @@ func cmdMessageSend(args []string) error {
 		return fmt.Errorf("store message: %w", err)
 	}
 
-	fmt.Printf("Message sent to %s\n", to)
-	fmt.Printf("Envelope hash: %x\n", hash)
+	log.Successf("message sent to %s", to)
+	log.Infof("envelope hash: %x", hash)
 
 	return nil
 }
@@ -392,24 +401,24 @@ func cmdMessageFetch(args []string) error {
 	}
 
 	if len(envs) == 0 {
-		fmt.Println("No pending messages")
+		log.Info("no pending messages")
 		return nil
 	}
 
-	fmt.Printf("Fetched %d message(s)\n", len(envs))
+	log.Infof("fetched %d message(s)", len(envs))
 	for i, env := range envs {
 		sm, err := message.Decrypt(env, kp.X25519Private, kp.X25519Public)
 		if err != nil {
-			fmt.Printf("  [%d] Failed to decrypt: %v\n", i+1, err)
+			log.Warnf("[%d] failed to decrypt: %v", i+1, err)
 			continue
 		}
 		if err := sm.Verify(); err != nil {
-			fmt.Printf("  [%d] Invalid signature: %v\n", i+1, err)
+			log.Warnf("[%d] invalid signature: %v", i+1, err)
 			continue
 		}
-		fmt.Printf("  [%d] From: %s\n", i+1, sm.Plaintext.SenderAddress)
-		fmt.Printf("      Body: %s\n", string(sm.Plaintext.Body.Content))
-		fmt.Printf("      Hash: %x\n", hashes[i])
+		log.Infof("[%d] from: %s", i+1, sm.Plaintext.SenderAddress)
+		log.Infof("[%d] body: %s", i+1, string(sm.Plaintext.Body.Content))
+		log.Infof("[%d] hash: %x", i+1, hashes[i])
 	}
 
 	return nil
