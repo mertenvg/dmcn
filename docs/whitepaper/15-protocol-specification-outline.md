@@ -304,6 +304,8 @@ Relay nodes communicate over persistent TLS 1.3 connections using a simple reque
 
 Relay nodes authenticate to each other and to clients using their registered DMCN identities. A relay node that presents an identity not found in the identity registry, or whose self-signature is invalid, must be rejected.
 
+**Hop-by-hop ACK requirement.** Upon successfully forwarding an onion packet to the next hop, a relay node MUST send an `ACK` back to its immediate predecessor over the same TLS connection on which the packet was received. The `ACK` carries only the SHA-256 hash of the onion packet — no routing information is included or required. This single-hop acknowledgement propagates back to the entry node, giving the sender confirmation that the packet entered the network. No node learns anything about the full route from this mechanism: each `ACK` travels exactly one hop in the reverse direction of the packet, between nodes that are already aware of each other as neighbours. The relationship between hop-by-hop ACKs and sender-side delivery timeout detection is specified in Section 15.4.5.
+
 #### 15.4.3 Flow Control and Rate Limiting
 
 Relay nodes implement per-sender rate limiting based on the sender's registered identity. New identities (registered within the past 30 days) are subject to stricter throughput limits than established identities, implementing the reputation bootstrapping behaviour described in Section 17.5.
@@ -317,7 +319,46 @@ These defaults are configurable by relay node operators and represent recommende
 
 ---
 
-### 15.5 Storage and Delivery Layer
+#### 15.4.4 Route Selection
+
+Route selection is performed by the sender's client at send time. The client queries its local relay node directory — refreshed periodically from the identity registry — and selects a three-hop path subject to the following hard constraints:
+
+- No two nodes in the path may share the same operator identity
+- No two nodes in the path may share the same Autonomous System Number (ASN)
+- No two nodes in the path may share the same /24 IPv4 subnet or /48 IPv6 prefix
+
+Within these constraints, nodes are scored by a weighted function of latency estimate, geographic distribution, current load, and reputation score. The entry node (hop 1) is selected from a stable guard set rotated every 30 days, following the guard node model described in Section 19.6. The route is pre-computed by the sender and baked into the onion layers at construction time; relay nodes cannot influence route selection.
+
+Known-failed nodes — those recorded in the sender's local reputation state as having caused delivery timeout — are excluded from route selection for a cooldown period of 30 minutes, after which they are re-admitted as candidates. Permanent exclusion requires a reputation score below the operator's configured threshold as published in the node's `NODE_INFO` record.
+
+---
+
+#### 15.4.5 Relay Failure Handling
+
+A relay node may fail to forward an onion packet due to transient connectivity issues, node crash, or permanent decommissioning. The failure handling model is designed to recover transparently from transient failures, surface persistent failures to the sender without leaking routing topology, and guarantee that the recipient never receives duplicate messages regardless of how many delivery attempts are made.
+
+**Predecessor retry.** When a relay node fails to deliver a packet to its next hop — indicated by a connection failure, timeout, or absence of an `ACK` within the configured `ack_timeout` (default: 10 seconds) — the predecessor queues the packet and retries with a decaying interval:
+
+| Attempt | Delay |
+|---|---|
+| 1st retry | 5 seconds |
+| 2nd retry | 15 seconds |
+| 3rd retry | 45 seconds |
+| Give up | Drop silently |
+
+Retry attempts are directed at the same next-hop node specified in the onion layer — the predecessor cannot read the onion payload and has no knowledge of any other part of the route. If all three retries are exhausted, the predecessor drops the packet silently and records a failure event against the next-hop node in its local reputation state. No notification is sent to the sender or to any other node.
+
+**Sender-side path reconstruction.** The sender detects delivery failure by the absence of an `ACK` from hop 1 (the entry node, its direct connection) within `ttl_seconds`. The sender has no information about which hop failed — only that delivery did not complete within the time-to-live window. On timeout the sender:
+
+1. Selects a new three-hop route, excluding any nodes currently in its local failed-node cooldown list
+2. Re-encrypts the onion packet for the new route
+3. Resubmits the message transparently to the application layer
+
+The application layer is not notified of the retry. From the user's perspective, the message is still in flight. If path reconstruction also fails — no ACK within a second `ttl_seconds` window — the sender's client surfaces a delivery failure notification to the user.
+
+**Idempotent delivery via content-addressed deduplication.** A retry may succeed in delivering a message that was already delivered by an earlier attempt, in cases where the original delivery succeeded but the ACK chain failed to propagate back to the sender. To prevent duplicate delivery, the storage layer enforces content-addressed deduplication as specified in Section 15.5.1: a delivery node that receives an envelope whose SHA-256 hash already exists in its store discards the duplicate silently and emits a normal `ACK` to the predecessor. The retry completes successfully, the ACK chain propagates, and the recipient receives the message exactly once.
+
+For recipients who are online and receiving messages via the push path rather than the store-and-fetch path, the delivery node maintains a short-lived seen-hash cache for the duration of `ttl_seconds` to provide the same deduplication guarantee without requiring persistent storage of the hash after delivery.
 
 #### 15.5.1 Message Store
 
@@ -335,6 +376,8 @@ stored_message_record {
 ```
 
 The `encrypted_envelope` itself is stored as an opaque blob. Relay nodes cannot read its contents.
+
+**Deduplication guarantee.** If a delivery node receives an envelope whose `envelope_hash` already exists in its store — for example, because a retry following an ACK propagation failure delivered the same message a second time — the node MUST discard the duplicate without creating a second store entry, and MUST emit a normal `ACK` to its predecessor. This makes retry delivery idempotent: the retry completes successfully from the network's perspective, and the recipient sees exactly one copy of the message regardless of how many delivery attempts were made. This deduplication behaviour is the correctness guarantee that makes the predecessor retry model in Section 15.4.5 safe.
 
 #### 15.5.2 Recipient Fetch Protocol
 
