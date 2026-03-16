@@ -153,7 +153,13 @@ type IdentityRecord struct {
     ExpiresAt        time.Time        // zero = no expiry
     RelayHints       []string
     VerificationTier VerificationTier
+    BridgeCapability bool             // true if this identity operates as a bridge node
     SelfSignature    [64]byte         // Ed25519 sig over all preceding fields
+    // Proto field numbering:
+    //   Fields 1–10: core fields above (through SelfSignature)
+    //   Fields 11–15: reserved for verifiable claims / SSI extension (protocol v2+)
+    //   Fields 16–18: reserved for identity policy flags (protocol v2+)
+    //   Field 19: BridgeCapability
 }
 ```
 
@@ -244,9 +250,10 @@ The HKDF domain separation string for CEK wrapping is `"dmcn-cek-wrap-v1"`.
 
 Define `.proto` (protobuf v3) schemas that correspond 1:1 to the Go structs above. The proto definitions are the canonical wire format; the Go structs are manually maintained in parallel with explicit serialisation tests. Generated Go code is output to `internal/proto/dmcnpb/` via `buf generate`.
 
-- `identity.proto` — `IdentityRecord`, `VerificationTier` enum
+- `identity.proto` — `IdentityRecord` (with reserved fields 11–18 for future claims/policy extensions), `VerificationTier` enum, `AttestationRecord`
 - `message.proto` — `PlaintextMessage`, `SignedMessage`, `EncryptedEnvelope`, `RecipientRecord`, `MessageBody`, `AttachmentRecord`
 - `relay.proto` — `RelayRequest`, `RelayResponse`, and all relay operation message types
+- `bridge.proto` — `BridgeClassificationRecord`, `BridgeDeliveryReceipt`, `BridgeTrustTier`, `SPFResult`, `DKIMResult`, `DMARCResult` enums
 
 All binary fields (keys, signatures, nonces, tags) are `bytes` in proto and `[]byte` in Go. All timestamps are `int64` Unix seconds in proto and `time.Time` in Go, with explicit conversion functions. String fields are UTF-8.
 
