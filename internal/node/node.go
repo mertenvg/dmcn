@@ -11,6 +11,7 @@ import (
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/mertenvg/logr/v2"
 	"github.com/multiformats/go-multiaddr"
 
 	"github.com/mertenvg/dmcn/internal/keystore"
@@ -32,12 +33,20 @@ type Node struct {
 	registry *registry.Registry
 	relay    *relay.Relay
 	keystore *keystore.Keystore
+	log      logr.Logger
 	ctx      context.Context
 	cancel   context.CancelFunc
 }
 
 // New creates and starts a new DMCN node.
-func New(ctx context.Context, cfg Config) (*Node, error) {
+func New(ctx context.Context, cfg Config, log ...logr.Logger) (*Node, error) {
+	var l logr.Logger
+	if len(log) > 0 {
+		l = log[0]
+	} else {
+		l = logr.With(logr.M("component", "node"))
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 
 	listenAddr, err := multiaddr.NewMultiaddr(cfg.ListenAddr)
@@ -79,6 +88,7 @@ func New(ctx context.Context, cfg Config) (*Node, error) {
 		registry: reg,
 		relay:    rl,
 		keystore: ks,
+		log:      l,
 		ctx:      ctx,
 		cancel:   cancel,
 	}
@@ -87,7 +97,7 @@ func New(ctx context.Context, cfg Config) (*Node, error) {
 	for _, peerAddr := range cfg.BootstrapPeers {
 		if err := n.ConnectPeer(peerAddr); err != nil {
 			// Non-fatal: log but continue
-			fmt.Printf("node: warning: failed to connect to bootstrap peer %s: %v\n", peerAddr, err)
+			l.Warnf("failed to connect to bootstrap peer %s: %v", peerAddr, err)
 		}
 	}
 

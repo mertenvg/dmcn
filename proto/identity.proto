@@ -49,4 +49,18 @@ message IdentityRecord {
   VerificationTier verification_tier = 8;
   repeated AttestationRecord attestations = 9;
   bytes self_signature = 10;             // 64 bytes Ed25519 sig over all preceding fields
+
+  // Reserved for future verifiable claims / SSI extension (protocol v2+)
+  // Fields 11–15: claims, claim_record
+  reserved 11, 12, 13, 14, 15;
+  reserved "claims", "claim_records";
+
+  // Reserved for future identity policy flags (protocol v2+)
+  // Fields 16–18: policy, policy_flags, guardian_policy
+  reserved 16, 17, 18;
+  reserved "policy", "policy_flags", "guardian_policy";
+
+  // Bridge capability flag — true if this identity operates as a bridge node.
+  // See whitepaper Section 15.6.
+  bool bridge_capability = 19;
 }

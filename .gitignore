@@ -2,3 +2,5 @@
 .claude
 .DS_Store
 bin
+*.out
+node_modules

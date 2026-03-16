@@ -1,4 +1,4 @@
-.PHONY: proto test test-cover lint clean build
+.PHONY: proto test test-cover lint clean build build-bridge
 
 proto:
 	buf generate
@@ -25,6 +25,9 @@ test-cover:
 	@echo "=== M2: Node + Integration ==="
 	go test ./internal/node/... -timeout 120s -coverprofile=coverage-node.out
 	go tool cover -func=coverage-node.out | tail -1
+	@echo "=== M3: Bridge ==="
+	go test ./internal/bridge/... -timeout 120s -coverprofile=coverage-bridge.out
+	go tool cover -func=coverage-bridge.out | tail -1
 
 lint:
 	buf lint
@@ -32,6 +35,10 @@ lint:
 
 build:
 	go build -o bin/dmcn-node ./cmd/dmcn-node
+	go build -o bin/dmcn-bridge ./cmd/dmcn-bridge
+
+build-bridge:
+	go build -o bin/dmcn-bridge ./cmd/dmcn-bridge
 
 clean:
-	rm -f coverage-*.out bin/dmcn-node
+	rm -f coverage-*.out bin/dmcn-node bin/dmcn-bridge

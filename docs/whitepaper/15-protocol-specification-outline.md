@@ -58,6 +58,13 @@ identity_record {
     verification_tier:    enum { UNVERIFIED, PROVIDER_HOSTED, DOMAIN_DNS, DANE }
     attestations:         repeated attestation_record  // optional web-of-trust
     self_signature:       bytes[64]   // Ed25519 signature over all preceding fields
+
+    // Reserved for future verifiable claims / SSI extension (protocol v2+)
+    reserved fields 11–15: claims, claim_record
+    // Reserved for future identity policy flags (protocol v2+)
+    reserved fields 16–18: policy, policy_flags, guardian_policy
+
+    bridge_capability:    bool        // true if this identity operates as a bridge node (field 19)
 }
 ```
 

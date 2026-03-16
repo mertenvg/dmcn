@@ -100,6 +100,7 @@ type IdentityRecord struct {
 	ExpiresAt        time.Time // zero = no expiry
 	RelayHints       []string
 	VerificationTier VerificationTier
+	BridgeCapability bool
 	SelfSignature    [64]byte
 }
 
@@ -181,6 +182,7 @@ func (r *IdentityRecord) signableBytes() ([]byte, error) {
 		ExpiresAt:        r.ExpiresAt.Unix(),
 		RelayHints:       r.RelayHints,
 		VerificationTier: dmcnpb.VerificationTier(r.VerificationTier),
+		BridgeCapability: r.BridgeCapability,
 		// SelfSignature intentionally omitted — this is what we sign over
 	}
 
@@ -202,6 +204,7 @@ func (r *IdentityRecord) ToProto() *dmcnpb.IdentityRecord {
 		ExpiresAt:        r.ExpiresAt.Unix(),
 		RelayHints:       r.RelayHints,
 		VerificationTier: dmcnpb.VerificationTier(r.VerificationTier),
+		BridgeCapability: r.BridgeCapability,
 		SelfSignature:    r.SelfSignature[:],
 	}
 }
@@ -233,6 +236,7 @@ func IdentityRecordFromProto(pb *dmcnpb.IdentityRecord) (*IdentityRecord, error)
 		ExpiresAt:        expiresAt,
 		RelayHints:       pb.RelayHints,
 		VerificationTier: VerificationTier(pb.VerificationTier),
+		BridgeCapability: pb.BridgeCapability,
 		SelfSignature:    selfSig,
 	}, nil
 }

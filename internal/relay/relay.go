@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/mertenvg/logr/v2"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/mertenvg/dmcn/internal/core/crypto"
@@ -50,6 +51,7 @@ type Relay struct {
 	lookup    LookupFunc
 	store     *MessageStore
 	limiter   *RateLimiter
+	log       logr.Logger
 	startTime time.Time
 	version   string
 
@@ -72,6 +74,7 @@ func New(h host.Host, lookup LookupFunc, opts ...Option) *Relay {
 		lookup:  lookup,
 		store:   NewMessageStore(),
 		limiter: NewRateLimiter(cfg.rateLimit),
+		log:     logr.With(logr.M("component", "relay")),
 		version: cfg.version,
 	}
 }
@@ -101,6 +104,7 @@ func (r *Relay) Start() {
 	r.started = true
 	r.startTime = time.Now()
 	r.host.SetStreamHandler(ProtocolID, r.handleStream)
+	r.log.Info("relay started")
 }
 
 // Stop removes the stream handler.
@@ -112,6 +116,7 @@ func (r *Relay) Stop() {
 	}
 	r.started = false
 	r.host.RemoveStreamHandler(ProtocolID)
+	r.log.Info("relay stopped")
 }
 
 // Store returns the underlying message store for direct access in tests.
@@ -154,6 +159,7 @@ func (r *Relay) handleStore(_ peer.ID, req *dmcnpb.StoreRequest) *dmcnpb.RelayRe
 
 	// 1. Rate limit check
 	if !r.limiter.Allow(req.SenderAddress) {
+		r.log.Warnf("STORE rate limited for sender %s", req.SenderAddress)
 		return errorResponse("RATE_LIMITED", ErrRateLimited.Error())
 	}
 
@@ -161,6 +167,7 @@ func (r *Relay) handleStore(_ peer.ID, req *dmcnpb.StoreRequest) *dmcnpb.RelayRe
 	senderRec, err := r.lookup(ctx, req.SenderAddress)
 	if err != nil {
 		if errors.Is(err, registry.ErrNotFound) {
+			r.log.Warnf("STORE rejected: unregistered sender %s", req.SenderAddress)
 			return errorResponse("UNREGISTERED_SENDER", ErrUnregisteredSender.Error())
 		}
 		return errorResponse("LOOKUP_FAILED", fmt.Sprintf("sender lookup: %v", err))
@@ -180,6 +187,7 @@ func (r *Relay) handleStore(_ peer.ID, req *dmcnpb.StoreRequest) *dmcnpb.RelayRe
 	envHash := crypto.SHA256Hash(envBytes)
 
 	if err := crypto.Verify(senderRec.Ed25519Public, envHash[:], req.SenderSignature); err != nil {
+		r.log.Warnf("STORE rejected: invalid signature from %s", req.SenderAddress)
 		return errorResponse("INVALID_SIGNATURE", "sender signature verification failed")
 	}
 
@@ -196,6 +204,8 @@ func (r *Relay) handleStore(_ peer.ID, req *dmcnpb.StoreRequest) *dmcnpb.RelayRe
 		addr := fmt.Sprintf("%x", rec.RecipientXPub[:])
 		r.store.Store(addr, env, envHash)
 	}
+
+	r.log.Debugf("STORE accepted from %s, hash %x, %d recipients", req.SenderAddress, envHash[:8], len(env.Recipients))
 
 	return &dmcnpb.RelayResponse{
 		Response: &dmcnpb.RelayResponse_Store{
@@ -250,6 +260,7 @@ func (r *Relay) handleFetch(s network.Stream, init *dmcnpb.FetchInit) {
 
 	// 5. Verify signature
 	if err := crypto.Verify(rec.Ed25519Public, nonce, proof.Signature); err != nil {
+		r.log.Warnf("FETCH auth failed for %s", init.Address)
 		writeResponse(s, errorResponse("AUTH_FAILED", ErrAuthFailed.Error()))
 		return
 	}
@@ -266,6 +277,8 @@ func (r *Relay) handleFetch(s network.Stream, init *dmcnpb.FetchInit) {
 		hash := hashes[i]
 		pbHashes[i] = hash[:]
 	}
+
+	r.log.Debugf("FETCH returning %d envelope(s) for %s", len(envs), init.Address)
 
 	writeResponse(s, &dmcnpb.RelayResponse{
 		Response: &dmcnpb.RelayResponse_Fetch{
