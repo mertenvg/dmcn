@@ -247,8 +247,10 @@ type IdentityRecord struct {
 	RelayHints       []string               `protobuf:"bytes,7,rep,name=relay_hints,json=relayHints,proto3" json:"relay_hints,omitempty"`
 	VerificationTier VerificationTier       `protobuf:"varint,8,opt,name=verification_tier,json=verificationTier,proto3,enum=dmcn.identity.VerificationTier" json:"verification_tier,omitempty"`
 	Attestations     []*AttestationRecord   `protobuf:"bytes,9,rep,name=attestations,proto3" json:"attestations,omitempty"`
-	SelfSignature    []byte                 `protobuf:"bytes,10,opt,name=self_signature,json=selfSignature,proto3" json:"self_signature,omitempty"`           // 64 bytes Ed25519 sig over all preceding fields
-	BridgeCapability bool                   `protobuf:"varint,11,opt,name=bridge_capability,json=bridgeCapability,proto3" json:"bridge_capability,omitempty"` // true if this identity operates as a bridge node
+	SelfSignature    []byte                 `protobuf:"bytes,10,opt,name=self_signature,json=selfSignature,proto3" json:"self_signature,omitempty"` // 64 bytes Ed25519 sig over all preceding fields
+	// Bridge capability flag — true if this identity operates as a bridge node.
+	// See whitepaper Section 15.6.
+	BridgeCapability bool `protobuf:"varint,19,opt,name=bridge_capability,json=bridgeCapability,proto3" json:"bridge_capability,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -375,7 +377,7 @@ const file_identity_proto_rawDesc = "" +
 	"attestedAt\x12\x1d\n" +
 	"\n" +
 	"expires_at\x18\a \x01(\x03R\texpiresAt\x12\x1c\n" +
-	"\tsignature\x18\b \x01(\fR\tsignature\"\xe5\x03\n" +
+	"\tsignature\x18\b \x01(\fR\tsignature\"\xd3\x04\n" +
 	"\x0eIdentityRecord\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\x12,\n" +
@@ -391,7 +393,7 @@ const file_identity_proto_rawDesc = "" +
 	"\fattestations\x18\t \x03(\v2 .dmcn.identity.AttestationRecordR\fattestations\x12%\n" +
 	"\x0eself_signature\x18\n" +
 	" \x01(\fR\rselfSignature\x12+\n" +
-	"\x11bridge_capability\x18\v \x01(\bR\x10bridgeCapability*\x99\x01\n" +
+	"\x11bridge_capability\x18\x13 \x01(\bR\x10bridgeCapabilityJ\x04\b\v\x10\fJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12J\x04\b\x12\x10\x13R\x06claimsR\rclaim_recordsR\x06policyR\fpolicy_flagsR\x0fguardian_policy*\x99\x01\n" +
 	"\x10VerificationTier\x12 \n" +
 	"\x1cVERIFICATION_TIER_UNVERIFIED\x10\x00\x12%\n" +
 	"!VERIFICATION_TIER_PROVIDER_HOSTED\x10\x01\x12 \n" +
