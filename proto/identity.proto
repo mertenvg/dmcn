@@ -49,4 +49,5 @@ message IdentityRecord {
   VerificationTier verification_tier = 8;
   repeated AttestationRecord attestations = 9;
   bytes self_signature = 10;             // 64 bytes Ed25519 sig over all preceding fields
+  bool bridge_capability = 11;           // true if this identity operates as a bridge node
 }

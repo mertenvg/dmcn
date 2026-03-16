@@ -1,6 +1,6 @@
 ---
 title: "DMCN — Proof of Concept Product Requirements Document"
-version: "1.0"
+version: "1.1"
 status: "Draft — For Development Use"
 date: "March 2026"
 author: "Merten van Gerven"
@@ -12,7 +12,7 @@ confidentiality: "CONFIDENTIAL"
 # DMCN — Proof of Concept PRD
 
 **Decentralized Mesh Communication Network**
-Version 1.0 · March 2026 · *CONFIDENTIAL — Draft for Development Use*
+Version 1.1 · March 2026 · *CONFIDENTIAL — Draft for Development Use*
 
 ---
 
@@ -56,31 +56,35 @@ The implementation language is Go. This choice is appropriate for all server-sid
 
 ## 3. Repository Structure
 
-The repository should be structured as a Go module with clearly separated packages from the outset. Future services import from the core package; the core package has no dependency on any service.
+The repository is structured as a Go module with clearly separated packages. Future services import from the core package; the core package has no dependency on any service.
 
 ```
 dmcn/
   cmd/
-    dmcn-node/        # combined dev node binary (Milestone 2)
+    dmcn-node/        # combined dev node binary (Milestone 2) ✅
     dmcn-bridge/      # bridge node binary (Milestone 3)
   internal/
     core/             # cryptographic primitives and data structures
-      identity/       # key generation, identity records, registry ops
-      message/        # plaintext, signed, encrypted envelope types
-      crypto/         # low-level crypto wrappers (Ed25519, X25519, AES-GCM, HKDF)
-    registry/         # DHT node and lookup client
-    relay/            # relay node message handling
+      identity/       # key generation, identity records, registry ops ✅
+      message/        # plaintext, signed, encrypted envelope types ✅
+      crypto/         # low-level crypto wrappers (Ed25519, X25519, AES-GCM, HKDF) ✅
+    registry/         # DHT node and lookup client ✅
+    relay/            # relay node message handling ✅
+    keystore/         # encrypted on-disk key storage ✅
+    node/             # combined dev node (DHT + relay in one process) ✅
     bridge/           # SMTP-DMCN bridge protocol
-  proto/              # Protocol Buffer definitions (.proto files)
-  docs/               # architecture notes, protocol decisions
+  proto/              # Protocol Buffer definitions (.proto files) ✅
+  docs/               # architecture notes, protocol decisions, whitepaper
   go.mod
 ```
 
-> **Convention:** All packages under `internal/` are unexported. Public API surface is minimal and intentional. Test files live alongside their packages.
+> **Convention:** All packages under `internal/` are unexported. Public API surface is minimal and intentional. Test files live alongside their packages (including integration tests).
 
 ---
 
-## 4. Milestone 1 — Cryptographic Core
+## 4. Milestone 1 — Cryptographic Core ✅
+
+> **Status: COMPLETE.** All specified tests pass. Coverage: crypto 91%, identity 94%, message 92%.
 
 The cryptographic core is the foundation of every other component. It must be correct, well-tested, and reviewed before anything is built on top of it. This milestone produces no binary — it is a Go package with comprehensive test coverage.
 
@@ -102,6 +106,8 @@ Implement thin, well-documented wrappers around Go standard library and `golang.
 | Secure random bytes | `crypto/rand.Read` |
 
 Each wrapper function must carry a doc comment that cites the relevant whitepaper section and states the exact input/output contract. All wrappers return explicit errors; no panics on invalid input.
+
+> **Implementation note:** The `randReader` package variable (`io.Reader`, defaults to `crypto/rand.Reader`) can be overridden in tests to simulate entropy failures.
 
 ### 4.2 Identity Layer (`internal/core/identity`)
 
@@ -151,7 +157,9 @@ type IdentityRecord struct {
 }
 ```
 
-`Sign(keypair)` computes and sets the `SelfSignature`. `Verify()` validates the `SelfSignature`. The signed byte sequence is the canonical protobuf serialisation of all fields except `SelfSignature`. Both methods must be unit-tested with known vectors.
+`Sign(keypair)` computes and sets the `SelfSignature`. `Verify()` validates the `SelfSignature`. The signed byte sequence is the canonical protobuf serialisation of all fields except `SelfSignature` (using deterministic marshaling: `proto.MarshalOptions{Deterministic: true}`). Both methods must be unit-tested with known vectors.
+
+> **Implementation note:** The `protoMarshal` package variable can be overridden in tests to simulate marshaling failures.
 
 #### 4.2.3 Fingerprint
 
@@ -197,7 +205,7 @@ type SignedMessage struct {
 }
 ```
 
-`Sign(senderPrivKey)` computes and sets `SenderSignature`. `Verify(senderPubKey)` validates it. A `SignedMessage` with an invalid signature must never be displayed to a user — this invariant must be enforced at the API boundary, not left to callers.
+`Sign(senderPrivKey)` computes and sets `SenderSignature`. `Verify()` validates it using the sender's public key from `Plaintext.SenderPublicKey`. A `SignedMessage` with an invalid signature must never be displayed to a user — this invariant must be enforced at the API boundary, not left to callers.
 
 #### 4.3.3 EncryptedEnvelope and KEM Pattern
 
@@ -221,21 +229,24 @@ type EncryptedEnvelope struct {
     PayloadNonce     [12]byte         // 96-bit nonce for payload
     PayloadTag       [16]byte         // GCM auth tag for payload
     PayloadSizeClass uint32           // padded size bucket
-    CreatedAt        time.Time
+    CreatedAt        int64            // Unix seconds
     RatchetPubKey    [32]byte         // reserved; zero in protocol v1
 }
 ```
 
-`Encrypt(msg SignedMessage, recipients []RecipientInfo)` produces an `EncryptedEnvelope`. `Decrypt(envelope EncryptedEnvelope, recipientPrivKey [32]byte, deviceID [16]byte)` returns the `SignedMessage`. Both functions must validate all cryptographic material and return typed errors on failure.
+`Encrypt(msg *SignedMessage, recipients []RecipientInfo)` produces an `*EncryptedEnvelope`. `Decrypt(env *EncryptedEnvelope, recipientPrivKey [32]byte, recipientPubKey [32]byte)` locates the matching `RecipientRecord` by comparing `RecipientXPub` to the provided public key and returns the `*SignedMessage`. Both functions must validate all cryptographic material and return typed errors on failure.
+
+The HKDF domain separation string for CEK wrapping is `"dmcn-cek-wrap-v1"`.
 
 > **RatchetPubKey:** This field is reserved for the Double Ratchet upgrade path (protocol v2). It must be present in the struct and serialised as a zero-valued 32-byte field in v1. Relay nodes and recipients must silently ignore it. Do not implement ratchet mechanics at this stage.
 
 ### 4.4 Protocol Buffer Definitions (`proto/`)
 
-Define `.proto` (protobuf v3) schemas that correspond 1:1 to the Go structs above. The proto definitions are the canonical wire format; the Go structs are generated from them where practical, or manually maintained in parallel with explicit serialisation tests.
+Define `.proto` (protobuf v3) schemas that correspond 1:1 to the Go structs above. The proto definitions are the canonical wire format; the Go structs are manually maintained in parallel with explicit serialisation tests. Generated Go code is output to `internal/proto/dmcnpb/` via `buf generate`.
 
-- `identity.proto` — `IdentityRecord`, `AttestationRecord`, `VerificationTier` enum
+- `identity.proto` — `IdentityRecord`, `VerificationTier` enum
 - `message.proto` — `PlaintextMessage`, `SignedMessage`, `EncryptedEnvelope`, `RecipientRecord`, `MessageBody`, `AttachmentRecord`
+- `relay.proto` — `RelayRequest`, `RelayResponse`, and all relay operation message types
 
 All binary fields (keys, signatures, nonces, tags) are `bytes` in proto and `[]byte` in Go. All timestamps are `int64` Unix seconds in proto and `time.Time` in Go, with explicit conversion functions. String fields are UTF-8.
 
@@ -257,7 +268,9 @@ Milestone 1 is not complete until all of the following tests pass:
 
 ---
 
-## 5. Milestone 2 — Node and Registry
+## 5. Milestone 2 — Node and Registry ✅
+
+> **Status: COMPLETE.** End-to-end alice→bob test passes. Unregistered sender rejection test passes. Rate limiting test passes.
 
 Milestone 2 introduces the network layer. The goal is a single binary (`dmcn-node`) that can register an identity to a local DHT instance and exchange a signed, encrypted message with another running instance of itself. Onion routing is explicitly excluded at this stage — messages are delivered directly between nodes.
 
@@ -265,68 +278,86 @@ Milestone 2 introduces the network layer. The goal is a single binary (`dmcn-nod
 
 Use libp2p (`github.com/libp2p/go-libp2p`) as the DHT foundation rather than implementing Kademlia from scratch. libp2p provides production-grade DHT infrastructure used by IPFS and Ethereum, and allows the PoC to focus on DMCN-specific protocol logic rather than DHT plumbing.
 
-The registry package wraps libp2p and exposes the four operations defined in whitepaper Section 15.2.4:
+The registry package wraps libp2p Kademlia DHT and exposes two operations for the PoC:
 
 | Operation | Behaviour |
 |---|---|
-| `REGISTER` | Store a signed `IdentityRecord` in the DHT, keyed on `SHA-256(address)`. Validates `SelfSignature` before storing. Idempotent. |
-| `LOOKUP` | Retrieve an `IdentityRecord` by exact address string. Returns not-found if absent. Validates `SelfSignature` on retrieval. |
-| `REVOKE` | Mark an identity as revoked. Revocation is permanent; revoked keys cannot be re-registered. |
-| `UPDATE` | Replace an `IdentityRecord` with a new one. The new record must be signed by both the old and new private keys to prove continuity of control. |
+| `REGISTER` | Store a signed `IdentityRecord` in the DHT, keyed on `SHA-256(address)` under the `/dmcn/` namespace. Validates `SelfSignature` before storing. Idempotent. |
+| `LOOKUP` | Retrieve an `IdentityRecord` by exact address string. Returns `ErrNotFound` if absent. Validates `SelfSignature` on retrieval. |
 
-> **Scope note:** For the PoC, the DHT can be operated as a local in-process instance or a small cluster of two or three nodes on localhost. Global DHT deployment is a post-PoC concern.
+The registry includes a `record.Validator` implementation (`identityValidator`) that validates self-signatures on DHT storage and selects the newer record (by `CreatedAt`) when conflicts arise.
+
+> **PoC scope:** `REVOKE` and `UPDATE` operations are defined in the whitepaper (Section 15.2.4) but deferred to post-PoC. Only `REGISTER` and `LOOKUP` are implemented.
+
+> **Scope note:** For the PoC, the DHT is operated as a local in-process instance or a small cluster of two or three nodes on localhost. Global DHT deployment is a post-PoC concern.
 
 ### 5.2 Relay Node (`internal/relay`)
 
 Implement a minimal relay node that can receive, verify, store, and forward `EncryptedEnvelope`s. At this stage, direct delivery is used — the full onion routing transport from Section 15.4 is deferred to a later milestone.
 
-The relay node must implement the following operations over TLS 1.3 connections:
+The relay node implements the following operations over libp2p streams (protocol ID `/dmcn/relay/1.0.0`) using a length-prefixed protobuf wire protocol:
 
 | Operation | Behaviour |
 |---|---|
-| `STORE` | Receive an `EncryptedEnvelope`. Verify the sender's identity exists in the registry. Store the envelope indexed by recipient public key. Reject envelopes from unregistered senders. |
-| `FETCH` | Recipient authenticates by signing a challenge nonce with their Ed25519 private key. Relay verifies the signature against the registry and returns pending envelopes for that identity. |
-| `ACK` | Recipient confirms successful decryption. Relay marks the envelope as delivered. |
-| `PING` | Liveness check. Returns node metadata: version, capacity, uptime. |
+| `STORE` | Receive an `EncryptedEnvelope`. Verify the sender's identity exists in the registry and validate the sender's Ed25519 signature over the envelope hash. Store the envelope indexed by recipient X25519 public key (hex-encoded). Reject envelopes from unregistered senders. |
+| `FETCH` | Recipient authenticates via challenge-response: relay sends a random 32-byte nonce, recipient signs it with their Ed25519 private key. Relay verifies the signature against the registry and returns pending envelopes for that identity. |
+| `ACK` | Recipient confirms successful decryption by envelope hash. Relay marks the envelope as delivered (status transitions from `Pending` to `Delivered`). |
+| `PING` | Liveness check. Returns node metadata: version, stored envelope count, uptime. |
 
 The relay node must enforce: sender identity must be registered in the DHT before a `STORE` is accepted. An envelope from an unregistered sender is dropped with a typed error response — this is the mechanism by which spam is rejected at the network boundary.
 
-> **Rate limiting:** Implement basic per-sender rate limiting in the PoC: maximum 100 `STORE` operations per hour per registered identity. This is intentionally conservative; production limits are defined in Section 15.4.3 of the whitepaper.
+The relay also provides `Client*` methods (`ClientStore`, `ClientStoreWithAddress`, `ClientFetch`, `ClientAck`, `ClientPing`) for sending requests to remote relay nodes over libp2p streams.
 
-### 5.3 The `dmcn-node` Binary
+> **Rate limiting:** Basic per-sender rate limiting using a sliding one-hour window: maximum 100 `STORE` operations per hour per registered identity. This is intentionally conservative; production limits are defined in Section 15.4.3 of the whitepaper.
+
+> **Message store:** The current implementation uses an in-memory message store (`MessageStore`), indexed by recipient address with a secondary hash index. Sufficient for PoC; persistent storage is post-PoC.
+
+### 5.3 Encrypted Keystore (`internal/keystore`)
+
+Identity key material is stored on disk in an encrypted keystore file. The keystore is AES-256-GCM encrypted with a key derived from the user's passphrase via HKDF-SHA256. The on-disk format is versioned JSON containing base64-encoded salt, nonce, ciphertext, and tag. File permissions are set to `0600`.
+
+The HKDF domain separation string for keystore key derivation is `"dmcn-keystore-v1"`.
+
+### 5.4 The `dmcn-node` Binary
 
 The `dmcn-node` binary is a combined development node that runs a DHT registry node and a relay node in a single process. It is not a production architecture — it exists to make end-to-end testing possible without running multiple separate services.
 
-The binary exposes a minimal CLI for development use:
+The binary exposes a minimal CLI for development use. All addresses use libp2p multiaddr format:
 
 ```
-dmcn-node start --listen 0.0.0.0:7400 --dht-port 7401
-dmcn-node identity generate --address alice@localhost
-dmcn-node identity register --address alice@localhost
-dmcn-node identity lookup --address bob@localhost
-dmcn-node message send --from alice@localhost --to bob@localhost --body "hello"
-dmcn-node message fetch --address alice@localhost
+dmcn-node start [--listen <multiaddr>] [--keystore <path>] [--passphrase <pass>] [--bootstrap <multiaddrs>]
+dmcn-node identity generate --address alice@localhost [--keystore <path>] [--passphrase <pass>]
+dmcn-node identity register --address alice@localhost --node <multiaddr> [--keystore <path>] [--passphrase <pass>]
+dmcn-node identity lookup --address bob@localhost --node <multiaddr>
+dmcn-node message send --from alice@localhost --to bob@localhost --body "hello" --node <multiaddr> [--keystore <path>] [--passphrase <pass>]
+dmcn-node message fetch --address alice@localhost --node <multiaddr> [--keystore <path>] [--passphrase <pass>]
 ```
 
-Identity key material is stored on disk in an encrypted keystore file, protected by a passphrase supplied at startup. The keystore format is documented and versioned.
+Defaults: `--listen /ip4/0.0.0.0/tcp/7400`, `--keystore keystore.enc`, `--passphrase dmcn-dev`.
 
-### 5.4 End-to-End Test Scenario
+### 5.5 End-to-End Test Scenario
 
-Milestone 2 is complete when the following scenario executes successfully in an automated integration test:
+The integration test (`internal/node/integration_test.go`) covers the following scenarios:
 
-1. Start two `dmcn-node` instances (node-A on port 7400, node-B on port 7402) sharing a local DHT.
+**`TestEndToEndAliceBob`** — The PRD-mandated end-to-end test:
+
+1. Start two `dmcn-node` instances sharing a local DHT (using `tcp/0` for random port assignment).
 2. Generate identity `alice@localhost` on node-A. Register it.
 3. Generate identity `bob@localhost` on node-B. Register it.
 4. node-A looks up `bob@localhost` and retrieves his `IdentityRecord`. Signature validates.
 5. node-A composes a `PlaintextMessage`, signs it, encrypts it to bob's X25519 public key, and `STORE`s it on node-B's relay.
 6. node-B authenticates and `FETCH`es its pending envelopes. Decrypts the envelope. Verifies the sender signature. Plaintext matches original.
-7. node-B sends `ACK`. node-A confirms delivery.
+7. node-B sends `ACK`. Delivery status confirms `Delivered`.
 
-> **Rejection test:** An additional test must confirm that a `STORE` from an unregistered identity is rejected by the relay node before the envelope enters storage.
+**`TestStoreFromUnregisteredSender`** — A `STORE` from an unregistered identity is rejected by the relay node before the envelope enters storage.
+
+**Additional integration tests:** `TestRegistryRegisterLookup`, `TestRegistryNotFound`, `TestRelayPing`, `TestRelayRateLimiting`.
 
 ---
 
 ## 6. Milestone 3 — Bridge Node
+
+> **Status: NOT STARTED.** Prerequisite: Milestone 2 complete ✅
 
 The bridge node is the first component that makes the PoC demonstrable to a non-technical audience: it allows a legacy email client (Gmail, Outlook, Apple Mail) to send a message that arrives in a DMCN inbox, and allows a DMCN user to reply to a legacy email address. This milestone produces the `dmcn-bridge` binary.
 
@@ -381,17 +412,33 @@ Milestone 3 is complete when the following scenario executes successfully:
 
 All functions that can fail must return an error as the final return value. Errors must be typed (using `errors.As` / `errors.Is` patterns) and must carry enough context to identify the failing operation without exposing private key material. Panics are not acceptable in production code paths — only in `init()` validation of compile-time constants.
 
+Sentinel error values are defined per package (e.g. `registry.ErrNotFound`, `relay.ErrRateLimited`, `relay.ErrUnregisteredSender`, `relay.ErrAuthFailed`, `keystore.ErrNotFound`, `keystore.ErrDecryptionFailed`, `crypto.ErrInvalidSignature`, `crypto.ErrDecryptionFailed`).
+
 ### 7.2 Logging
 
-Use a structured logger (`log/slog` from Go 1.21 standard library). Log levels: DEBUG for protocol trace, INFO for normal operation events, WARN for degraded conditions, ERROR for failures. Private key material must never appear in log output at any level. Message content must never appear in log output above DEBUG level, and DEBUG logging must be disabled by default.
+Use `github.com/mertenvg/logr/v2` for structured logging. The library provides level-based logging with metadata support via `logr.With(logr.M(...))`.
+
+Log levels and their usage:
+
+| Level | Usage |
+|---|---|
+| `logr.Debug` | Protocol trace (STORE/FETCH details, envelope hashes). Disabled by default. |
+| `logr.Info` | Normal operation events (node started, listening addresses, fetch results). |
+| `logr.Success` | Completed user actions (identity generated, message sent). |
+| `logr.Warn` | Degraded conditions, rejected operations (rate limited, unregistered sender, auth failures). |
+| `logr.Error` | Failures that prevent an operation from completing. |
+
+The CLI initializes logr with `logr.AddWriter(os.Stderr, logr.WithFormatter(logr.FormatWithColours), logr.WithFilter(logr.Verbose))`. Internal packages create component-scoped loggers via `logr.With(logr.M("component", "..."))`.
+
+Private key material must never appear in log output at any level. Message content must never appear in log output above DEBUG level, and DEBUG logging must be disabled by default. Call `logr.Wait()` before `os.Exit()` to flush pending log messages.
 
 ### 7.3 Configuration
 
-All node configuration is supplied via a YAML config file and/or environment variables. No hardcoded addresses, ports, or key material. The config schema is documented and validated at startup with clear error messages for missing or invalid values.
+For the PoC, all node configuration is supplied via CLI flags with sensible defaults. No configuration file is required.
 
 ### 7.4 Testing
 
-Unit tests live alongside their packages (`foo_test.go`). Integration tests live in a top-level `tests/` directory. The integration test suite must be runnable with a single command (`make test-integration` or equivalent) that starts all required local services and tears them down after. CI must run both unit and integration tests on every commit.
+Unit tests live alongside their packages (`foo_test.go`). Integration tests live alongside the package they test (e.g. `internal/node/integration_test.go`). All tests are runnable with `make test` (120s timeout). Coverage is measured per-package with `make test-cover`.
 
 ### 7.5 Dependencies
 
@@ -401,28 +448,27 @@ Minimise external dependencies. The approved external dependencies for the PoC a
 |---|---|
 | `golang.org/x/crypto` | X25519, HKDF, additional crypto primitives |
 | `google.golang.org/protobuf` | Protocol Buffer serialisation |
-| `github.com/libp2p/go-libp2p` | DHT and peer-to-peer networking foundation |
-| `gopkg.in/yaml.v3` | Configuration file parsing |
-| `log/slog` | Structured logging (Go >= 1.21 standard library) |
+| `github.com/libp2p/go-libp2p` | DHT and peer-to-peer networking (includes Kademlia, Noise encryption, stream multiplexing) |
+| `github.com/mertenvg/logr/v2` | Structured logging |
 
 Any additional dependency requires a brief written justification in the PR that introduces it. Dependencies with C bindings (cgo) are discouraged unless no pure-Go alternative exists.
 
 ### 7.6 Security Constraints
 
-- Private key material must never be written to disk in plaintext. The keystore must be AES-256-GCM encrypted with a key derived from the user's passphrase via PBKDF2 or Argon2id.
-- TLS 1.3 is required for all inter-node communication. TLS 1.2 must not be accepted.
-- All received `IdentityRecord`s and `SignedMessage`s must have their signatures verified before any processing occurs. Skipping signature verification is not acceptable under any code path.
-- The relay node must never store an envelope from an unregistered sender. This check must occur before any disk write.
+- Private key material must never be written to disk in plaintext. The keystore is AES-256-GCM encrypted with a key derived from the user's passphrase via HKDF-SHA256 with domain separation string `"dmcn-keystore-v1"`.
+- Inter-node communication is encrypted via libp2p's Noise protocol (authenticated key exchange).
+- All received `IdentityRecord`s and `SignedMessage`s must have their signatures verified before any processing occurs. Skipping signature verification is not acceptable under any code path. The DHT `identityValidator` enforces this for registry records.
+- The relay node must never store an envelope from an unregistered sender. This check must occur before any storage write.
 
 ---
 
 ## 8. Milestone Summary
 
-| # | Milestone | Deliverable | Done When |
-|---|---|---|---|
-| M1 | Cryptographic Core | `internal/core` packages + proto definitions | All 9 specified tests pass at 90% coverage |
-| M2 | Node and Registry | `internal/registry`, `internal/relay`, `cmd/dmcn-node` | End-to-end alice→bob message test passes |
-| M3 | Bridge Node | `internal/bridge`, `cmd/dmcn-bridge` | Legacy SMTP↔DMCN round-trip test passes |
+| # | Milestone | Deliverable | Status | Done When |
+|---|---|---|---|---|
+| M1 | Cryptographic Core | `internal/core` packages + proto definitions | ✅ Complete | All 9 specified tests pass at 90% coverage |
+| M2 | Node and Registry | `internal/registry`, `internal/relay`, `internal/keystore`, `internal/node`, `cmd/dmcn-node` | ✅ Complete | End-to-end alice→bob message test passes |
+| M3 | Bridge Node | `internal/bridge`, `cmd/dmcn-bridge` | Not started | Legacy SMTP↔DMCN round-trip test passes |
 
 Milestones are sequential. M2 must not begin until M1's test suite is complete and passing. M3 must not begin until M2's integration test is complete and passing.
 
@@ -435,12 +481,16 @@ The following capabilities are confirmed out of scope for the PoC and must not b
 - **Onion routing** (Section 15.4.1) — direct delivery is used throughout the PoC.
 - **Double Ratchet forward secrecy** (whitepaper Section 15.7, protocol v2) — the `RatchetPubKey` field is reserved as zero bytes only.
 - **Device state synchronisation** (whitepaper Section 15.3.5, `SyncEnvelope`) — the data structure is defined in the protocol spec; implementation is deferred. The PoC must populate `message_id` correctly on all `PlaintextMessage` instances to ensure no structural changes are required when sync is implemented.
-- **Social key recovery** (Section 7.3) — not implemented; key material is passphrase-protected on disk.
+- **Registry REVOKE and UPDATE operations** (Section 15.2.4) — defined in spec but only REGISTER and LOOKUP are implemented.
+- **Device sub-key management** (Section 15.2.5) — defined in spec but not implemented.
+- **Social key recovery / guardian policy** (Section 7.3, Section 14) — not implemented; key material is passphrase-protected on disk. Guardian policy specification exists in the whitepaper.
 - **Shared reputation feeds** (Section 14.3.2) — not implemented.
 - **Full trust management stack** (allowlist, pending queue, blocklist) — not implemented in the PoC node; the data structures may be defined but no UI or enforcement logic.
 - **Address portability / domain verification tiers** — not implemented; all identities are `TierUnverified` in the PoC.
 - **Native desktop or mobile client** — the CLI is the only client interface in the PoC.
 - **Production DHT deployment** — localhost only.
+- **Persistent message storage** — relay uses in-memory store; database backend is post-PoC.
+- **Delivery receipts** (Section 15.5.3) — defined in spec but not implemented.
 
 ---
 
