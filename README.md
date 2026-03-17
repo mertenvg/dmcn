@@ -38,16 +38,16 @@ A bridge architecture maintains full interoperability with the 4 billion users o
 
 ## Status
 
-> **Early proof-of-concept in progress.** The whitepaper is complete. Implementation has begun.
+> **Proof of concept complete.** All three milestones have been implemented and tested.
 
 | Milestone | Description | Status |
 |---|---|---|
 | **Whitepaper v0.2** | Full architecture specification | ✅ Complete |
-| **M1 — Cryptographic Core** | Identity layer, message format, KEM encryption (`internal/core`) | 🔨 In progress |
-| **M2 — Node and Registry** | libp2p-based DHT, relay node, `dmcn-node` binary | ⏳ Planned |
-| **M3 — Bridge Node** | Inbound SMTP→DMCN and outbound DMCN→SMTP paths | ⏳ Planned |
+| **M1 — Cryptographic Core** | Identity layer, message format, KEM encryption (`internal/core`) | ✅ Complete |
+| **M2 — Node and Registry** | libp2p-based DHT, relay node, encrypted keystore, `dmcn-node` binary | ✅ Complete |
+| **M3 — Bridge Node** | SMTP-DMCN bridge, inbound/outbound handlers, `dmcn-bridge` binary | ✅ Complete |
 
-The implementation is being developed in Go. The cryptographic core is the starting point, deliberately prior to any networking layer.
+The PoC validates the core protocol design end-to-end: identity registration, DHT-based lookup, message signing, hybrid encryption, relay delivery, and bidirectional SMTP bridging with trust classification.
 
 ---
 
@@ -56,7 +56,7 @@ The implementation is being developed in Go. The cryptographic core is the start
 The full technical whitepaper is the primary design document for the project.
 
 - [**Read the whitepaper**](docs/whitepaper/README.md) — architecture, protocol specification, threat model, privacy analysis, and open challenges
-- [**Download the PDF**](docs/whitepaper/DMCN-Whitepaper-v0.2.pdf)
+- [**Download the PDF**](docs/whitepaper/DMCN-Whitepaper.pdf)
 
 The whitepaper covers:
 
@@ -108,20 +108,64 @@ Key cryptographic primitives: **Ed25519** (signing), **X25519 + HKDF-SHA256** (k
 
 ## Getting Started
 
-The proof-of-concept implementation is in early development. The cryptographic core (`internal/core`) is the current focus and the right place to start for contributors.
-
 **Prerequisites**
 
-- Go 1.22 or later
+- Go 1.25 or later
+- [buf](https://buf.build/) CLI (for protobuf generation only)
 
-**Clone the repository**
+**Build and test**
 
 ```bash
 git clone https://github.com/mertenvg/dmcn.git
 cd dmcn
+make build          # Build bin/dmcn-node and bin/dmcn-bridge
+make test           # Run all tests (120s timeout)
+make test-cover     # Per-package coverage reports
+make lint           # buf lint + go vet
 ```
 
-Further setup instructions will be added as the M1 milestone progresses.
+**Run a development node**
+
+```bash
+./bin/dmcn-node start --listen /ip4/127.0.0.1/tcp/9000
+```
+
+**Generate and register an identity**
+
+```bash
+./bin/dmcn-node identity generate --keystore keys.json --passphrase "secret"
+./bin/dmcn-node identity register --node /ip4/127.0.0.1/tcp/9000 \
+    --address alice@localhost --keystore keys.json --passphrase "secret"
+```
+
+**Start a bridge node**
+
+```bash
+./bin/dmcn-bridge start --node /ip4/127.0.0.1/tcp/9000/p2p/<PEER_ID> \
+    --smtp-listen :2525 --bridge-domain bridge.localhost --dmcn-domain dmcn.localhost
+```
+
+**Repository structure**
+
+```
+cmd/
+  dmcn-node/          CLI: start, identity generate|register|lookup, message send|fetch
+  dmcn-bridge/        CLI: start --node <multiaddr>
+internal/
+  core/crypto/        Ed25519, X25519, AES-256-GCM, HKDF-SHA256
+  core/identity/      Self-certifying identity records (local@domain)
+  core/message/       Three-layer message model: plaintext → signed → encrypted envelope
+  registry/           DHT-based identity registry (libp2p Kademlia)
+  relay/              Message relay over libp2p streams (/dmcn/relay/1.0.0)
+  keystore/           Encrypted on-disk key storage
+  node/               Combined development node (DHT + relay)
+  bridge/             SMTP-DMCN bridge with pluggable auth and delivery interfaces
+  proto/dmcnpb/       Generated protobuf Go code
+proto/                Protocol Buffer definitions (identity, message, relay, bridge)
+docs/
+  whitepaper/         Full protocol specification
+  DMCN-PoC-PRD.md    Proof of concept requirements
+```
 
 ---
 

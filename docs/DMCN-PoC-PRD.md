@@ -475,7 +475,7 @@ Any additional dependency requires a brief written justification in the PR that 
 |---|---|---|---|---|
 | M1 | Cryptographic Core | `internal/core` packages + proto definitions | ✅ Complete | All 9 specified tests pass at 90% coverage |
 | M2 | Node and Registry | `internal/registry`, `internal/relay`, `internal/keystore`, `internal/node`, `cmd/dmcn-node` | ✅ Complete | End-to-end alice→bob message test passes |
-| M3 | Bridge Node | `internal/bridge`, `cmd/dmcn-bridge` | Not started | Legacy SMTP↔DMCN round-trip test passes |
+| M3 | Bridge Node | `internal/bridge`, `cmd/dmcn-bridge` | ✅ Complete | Legacy SMTP↔DMCN round-trip test passes |
 
 Milestones are sequential. M2 must not begin until M1's test suite is complete and passing. M3 must not begin until M2's integration test is complete and passing.
 
