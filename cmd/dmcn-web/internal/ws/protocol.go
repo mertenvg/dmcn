@@ -6,22 +6,12 @@ import "encoding/json"
 
 // WebSocket message type constants.
 const (
-	TypeAuthenticate   = "authenticate"
-	TypeAuthenticated  = "authenticated"
-	TypeFetchRequest   = "fetch_request"
+	TypeFetchRequest  = "fetch_request"
 	TypeFetchChallenge = "fetch_challenge"
-	TypeFetchProof     = "fetch_proof"
-	TypeNewEnvelopes   = "new_envelopes"
-	TypeError          = "error"
+	TypeFetchProof    = "fetch_proof"
+	TypeNewEnvelopes  = "new_envelopes"
+	TypeError         = "error"
 )
-
-// AuthenticateData is sent by the client as the first message after the
-// WebSocket is opened. The session token is transmitted here instead of in
-// the URL query string so it does not leak into server logs, browser history,
-// or Referer headers.
-type AuthenticateData struct {
-	Token string `json:"token"`
-}
 
 // WSMessage is the top-level JSON envelope for all WebSocket messages.
 type WSMessage struct {

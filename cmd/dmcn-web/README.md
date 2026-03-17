@@ -192,12 +192,4 @@ WantedBy=multi-user.target
 
 | Path | Description |
 |---|---|
-| `GET /ws` | WebSocket for real-time envelope delivery via FETCH challenge-response |
-
-The WebSocket does not accept the session token in the URL query string (tokens in URLs leak into server logs, browser history, and Referer headers). Instead, the client must send an `authenticate` message as the first frame after connecting:
-
-```json
-{"id": "auth", "type": "authenticate", "data": {"token": "<session_token>"}}
-```
-
-The server responds with `{"type": "authenticated"}` on success or closes the connection on failure.
+| `GET /ws?token=...` | WebSocket for real-time envelope delivery via FETCH challenge-response |
