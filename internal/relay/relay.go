@@ -525,6 +525,148 @@ func (r *Relay) ClientFetch(ctx context.Context, peerID peer.ID, kp *identity.Id
 	return envs, hashes, nil
 }
 
+// ClientStorePreSigned sends a STORE request with a pre-computed signature.
+// This is used by the web client where the browser signs the envelope hash
+// and the server relays it without having access to private keys.
+func (r *Relay) ClientStorePreSigned(ctx context.Context, peerID peer.ID, senderAddr string, signature []byte, env *message.EncryptedEnvelope) ([32]byte, error) {
+	s, err := r.host.NewStream(ctx, peerID, ProtocolID)
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("relay: store: open stream: %w", err)
+	}
+	defer s.Close()
+
+	envProto := env.ToProto()
+
+	req := &dmcnpb.RelayRequest{
+		Request: &dmcnpb.RelayRequest_Store{
+			Store: &dmcnpb.StoreRequest{
+				SenderAddress:   senderAddr,
+				SenderSignature: signature,
+				Envelope:        envProto,
+			},
+		},
+	}
+
+	if err := writeRequest(s, req); err != nil {
+		return [32]byte{}, fmt.Errorf("relay: store: write: %w", err)
+	}
+
+	resp, err := readResponse(s)
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("relay: store: read response: %w", err)
+	}
+
+	if errResp := resp.GetError(); errResp != nil {
+		switch errResp.Code {
+		case "UNREGISTERED_SENDER":
+			return [32]byte{}, ErrUnregisteredSender
+		case "RATE_LIMITED":
+			return [32]byte{}, ErrRateLimited
+		default:
+			return [32]byte{}, fmt.Errorf("relay: store: %s: %s", errResp.Code, errResp.Message)
+		}
+	}
+
+	storeResp := resp.GetStore()
+	if storeResp == nil {
+		return [32]byte{}, errors.New("relay: store: unexpected response type")
+	}
+
+	var envHash [32]byte
+	copy(envHash[:], storeResp.EnvelopeHash)
+	return envHash, nil
+}
+
+// ClientFetchChallenge sends a FetchInit and returns the challenge nonce and
+// the open stream. The caller must complete the exchange by calling
+// ClientFetchComplete with the signed nonce.
+func (r *Relay) ClientFetchChallenge(ctx context.Context, peerID peer.ID, address string) ([]byte, network.Stream, error) {
+	s, err := r.host.NewStream(ctx, peerID, ProtocolID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("relay: fetch: open stream: %w", err)
+	}
+
+	// Send FetchInit
+	req := &dmcnpb.RelayRequest{
+		Request: &dmcnpb.RelayRequest_FetchInit{
+			FetchInit: &dmcnpb.FetchInit{Address: address},
+		},
+	}
+	if err := writeRequest(s, req); err != nil {
+		s.Close()
+		return nil, nil, fmt.Errorf("relay: fetch: write init: %w", err)
+	}
+
+	// Read challenge
+	resp, err := readResponse(s)
+	if err != nil {
+		s.Close()
+		return nil, nil, fmt.Errorf("relay: fetch: read challenge: %w", err)
+	}
+	if errResp := resp.GetError(); errResp != nil {
+		s.Close()
+		return nil, nil, fmt.Errorf("relay: fetch: %s: %s", errResp.Code, errResp.Message)
+	}
+	challenge := resp.GetFetchChallenge()
+	if challenge == nil {
+		s.Close()
+		return nil, nil, errors.New("relay: fetch: expected challenge response")
+	}
+
+	return challenge.Nonce, s, nil
+}
+
+// ClientFetchComplete sends the signed proof on an open stream (from
+// ClientFetchChallenge) and returns the envelopes. The stream is closed
+// when this method returns.
+func (r *Relay) ClientFetchComplete(s network.Stream, address string, nonce, signature []byte) ([]*message.EncryptedEnvelope, [][32]byte, error) {
+	defer s.Close()
+
+	proofReq := &dmcnpb.RelayRequest{
+		Request: &dmcnpb.RelayRequest_FetchProof{
+			FetchProof: &dmcnpb.FetchProof{
+				Address:   address,
+				Nonce:     nonce,
+				Signature: signature,
+			},
+		},
+	}
+	if err := writeRequest(s, proofReq); err != nil {
+		return nil, nil, fmt.Errorf("relay: fetch: write proof: %w", err)
+	}
+
+	resp, err := readResponse(s)
+	if err != nil {
+		return nil, nil, fmt.Errorf("relay: fetch: read envelopes: %w", err)
+	}
+	if errResp := resp.GetError(); errResp != nil {
+		if errResp.Code == "AUTH_FAILED" {
+			return nil, nil, ErrAuthFailed
+		}
+		return nil, nil, fmt.Errorf("relay: fetch: %s: %s", errResp.Code, errResp.Message)
+	}
+
+	fetchResp := resp.GetFetch()
+	if fetchResp == nil {
+		return nil, nil, errors.New("relay: fetch: unexpected response type")
+	}
+
+	envs := make([]*message.EncryptedEnvelope, len(fetchResp.Envelopes))
+	hashes := make([][32]byte, len(fetchResp.EnvelopeHashes))
+	for i, pb := range fetchResp.Envelopes {
+		env, err := message.EncryptedEnvelopeFromProto(pb)
+		if err != nil {
+			return nil, nil, fmt.Errorf("relay: fetch: envelope %d: %w", i, err)
+		}
+		envs[i] = env
+		if i < len(fetchResp.EnvelopeHashes) {
+			copy(hashes[i][:], fetchResp.EnvelopeHashes[i])
+		}
+	}
+
+	return envs, hashes, nil
+}
+
 // ClientAck sends an ACK for a delivered envelope.
 func (r *Relay) ClientAck(ctx context.Context, peerID peer.ID, envelopeHash [32]byte) error {
 	s, err := r.host.NewStream(ctx, peerID, ProtocolID)
