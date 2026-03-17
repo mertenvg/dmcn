@@ -13,36 +13,24 @@ export class DMCNWebSocket {
   private handlers = new Map<string, MessageHandler>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
-  private authenticated = false;
 
   constructor(token: string) {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    this.url = `${proto}//${location.host}/ws`;
+    this.url = `${proto}//${location.host}/ws?token=${encodeURIComponent(token)}`;
     this.token = token;
   }
 
   connect() {
     if (this.closed) return;
-    this.authenticated = false;
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
-      // Send session token as the first message rather than in the URL
-      // query string, so it doesn't leak into logs or browser history.
-      this.ws!.send(JSON.stringify({
-        id: 'auth',
-        type: 'authenticate',
-        data: { token: this.token },
-      }));
+      console.log('WebSocket connected');
     };
 
     this.ws.onmessage = (event) => {
       try {
         const msg: WSMessage = JSON.parse(event.data);
-        if (msg.type === 'authenticated') {
-          this.authenticated = true;
-          return;
-        }
         const handler = this.handlers.get(msg.type);
         if (handler) handler(msg);
       } catch (e) {
@@ -51,7 +39,6 @@ export class DMCNWebSocket {
     };
 
     this.ws.onclose = () => {
-      this.authenticated = false;
       if (!this.closed) {
         this.reconnectTimer = setTimeout(() => this.connect(), 3000);
       }
@@ -67,7 +54,7 @@ export class DMCNWebSocket {
   }
 
   send(msg: WSMessage) {
-    if (this.ws?.readyState === WebSocket.OPEN && this.authenticated) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
     }
   }
