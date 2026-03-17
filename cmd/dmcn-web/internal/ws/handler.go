@@ -85,25 +85,54 @@ func NewConnManager(
 }
 
 // HandleUpgrade upgrades an HTTP request to a WebSocket connection. The
-// session token is read from the "token" query parameter.
+// connection is not considered authenticated until the client sends an
+// "authenticate" message containing its session token. This avoids placing
+// the token in the URL query string where it would leak into server logs,
+// browser history, and Referer headers.
 func (cm *ConnManager) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "missing token", http.StatusUnauthorized)
-		return
-	}
-
-	address, err := cm.sessions.Validate(token)
-	if err != nil {
-		http.Error(w, "invalid session", http.StatusUnauthorized)
-		return
-	}
-
 	wsConn, err := cm.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		cm.log.Error("websocket upgrade failed", logr.M("error", err.Error()))
 		return
 	}
+
+	// Wait for the first message which must be an authenticate message.
+	// Apply a generous timeout so slow clients aren't immediately dropped.
+	wsConn.SetReadDeadline(time.Now().Add(30 * time.Second))
+
+	_, rawMsg, err := wsConn.ReadMessage()
+	if err != nil {
+		wsConn.Close()
+		return
+	}
+
+	var msg WSMessage
+	if err := json.Unmarshal(rawMsg, &msg); err != nil || msg.Type != TypeAuthenticate {
+		cm.writeWSError(wsConn, "", "first message must be authenticate")
+		wsConn.Close()
+		return
+	}
+
+	var authData AuthenticateData
+	if err := json.Unmarshal(msg.Data, &authData); err != nil || authData.Token == "" {
+		cm.writeWSError(wsConn, msg.ID, "missing token")
+		wsConn.Close()
+		return
+	}
+
+	address, err := cm.sessions.Validate(authData.Token)
+	if err != nil {
+		cm.writeWSError(wsConn, msg.ID, "invalid session")
+		wsConn.Close()
+		return
+	}
+
+	// Clear the read deadline now that authentication succeeded.
+	wsConn.SetReadDeadline(time.Time{})
+
+	// Confirm authentication to the client.
+	ack, _ := json.Marshal(WSMessage{ID: msg.ID, Type: TypeAuthenticated})
+	wsConn.WriteMessage(websocket.TextMessage, ack)
 
 	ctx, cancel := context.WithCancel(r.Context())
 	cc := &clientConn{
@@ -214,6 +243,14 @@ func (cm *ConnManager) Remove(address string) {
 		cc.conn.Close()
 		cm.log.Info("websocket disconnected", logr.M("address", address))
 	}
+}
+
+// writeWSError writes an error frame directly to a WebSocket connection that
+// may not yet be registered in the ConnManager (e.g. during authentication).
+func (cm *ConnManager) writeWSError(conn *websocket.Conn, msgID, errMsg string) {
+	data, _ := json.Marshal(ErrorData{Message: errMsg})
+	resp, _ := json.Marshal(WSMessage{ID: msgID, Type: TypeError, Data: data})
+	conn.WriteMessage(websocket.TextMessage, resp)
 }
 
 // sendError sends an error message over the WebSocket.
