@@ -1,4 +1,4 @@
-.PHONY: proto test test-cover lint clean build build-bridge
+.PHONY: proto test test-cover lint clean build build-bridge build-web
 
 proto:
 	buf generate
@@ -36,9 +36,15 @@ lint:
 build:
 	go build -o bin/dmcn-node ./cmd/dmcn-node
 	go build -o bin/dmcn-bridge ./cmd/dmcn-bridge
+	go build -o bin/dmcn-web ./cmd/dmcn-web
 
 build-bridge:
 	go build -o bin/dmcn-bridge ./cmd/dmcn-bridge
 
+build-web:
+	cd cmd/dmcn-web/web && npm ci && npm run build && cd ../../..
+	go build -o bin/dmcn-web ./cmd/dmcn-web
+
 clean:
-	rm -f coverage-*.out bin/dmcn-node bin/dmcn-bridge
+	rm -f coverage-*.out bin/dmcn-node bin/dmcn-bridge bin/dmcn-web
+	rm -rf cmd/dmcn-web/web/dist cmd/dmcn-web/web/node_modules
