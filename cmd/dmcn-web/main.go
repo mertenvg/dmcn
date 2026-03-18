@@ -31,7 +31,10 @@ import (
 //go:embed web/dist
 var frontendFS embed.FS
 
-var log logr.Logger
+var (
+	version = "dev"
+	log     logr.Logger
+)
 
 // relayAdapter bridges the node's relay Client* methods to the RelayProxy
 // interface expected by the WebSocket ConnManager.
@@ -49,6 +52,11 @@ func (ra *relayAdapter) FetchComplete(stream network.Stream, address string, non
 }
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "version" {
+		fmt.Println("dmcn-web", version)
+		return
+	}
+
 	logr.AddWriter(os.Stderr, logr.WithFormatter(logr.FormatWithColours), logr.WithFilter(logr.Verbose))
 	log = logr.With(logr.M("component", "web"))
 
