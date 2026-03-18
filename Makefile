@@ -1,5 +1,32 @@
 .PHONY: proto test test-cover lint clean build build-bridge build-web build-linux
 
+VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
+LDFLAGS  = -ldflags "-X main.version=$(VERSION)"
+
+build:
+	go build $(LDFLAGS) -o bin/dmcn-node ./cmd/dmcn-node
+	go build $(LDFLAGS) -o bin/dmcn-bridge ./cmd/dmcn-bridge
+	go build $(LDFLAGS) -o bin/dmcn-web ./cmd/dmcn-web
+
+build-bridge:
+	go build $(LDFLAGS) -o bin/dmcn-bridge ./cmd/dmcn-bridge
+
+build-web:
+	cd cmd/dmcn-web/web && npm ci && npm run build && cd ../../..
+	go build $(LDFLAGS) -o bin/dmcn-web ./cmd/dmcn-web
+
+GOOS   ?= linux
+GOARCH ?= amd64
+build-linux:
+	mkdir -p bin/$(GOOS)-$(GOARCH)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(LDFLAGS) -o bin/$(GOOS)-$(GOARCH)/dmcn-node ./cmd/dmcn-node
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(LDFLAGS) -o bin/$(GOOS)-$(GOARCH)/dmcn-bridge ./cmd/dmcn-bridge
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(LDFLAGS) -o bin/$(GOOS)-$(GOARCH)/dmcn-web ./cmd/dmcn-web
+
+clean:
+	rm -f *.out bin/dmcn-* bin/linux-amd64/*
+	rm -rf cmd/dmcn-web/web/dist cmd/dmcn-web/web/node_modules
+
 proto:
 	buf generate
 
@@ -32,30 +59,3 @@ test-cover:
 lint:
 	buf lint
 	go vet ./internal/...
-
-build:
-	go build $(LDFLAGS) -o bin/dmcn-node ./cmd/dmcn-node
-	go build $(LDFLAGS) -o bin/dmcn-bridge ./cmd/dmcn-bridge
-	go build $(LDFLAGS) -o bin/dmcn-web ./cmd/dmcn-web
-
-build-bridge:
-	go build $(LDFLAGS) -o bin/dmcn-bridge ./cmd/dmcn-bridge
-
-build-web:
-	cd cmd/dmcn-web/web && npm ci && npm run build && cd ../../..
-	go build $(LDFLAGS) -o bin/dmcn-web ./cmd/dmcn-web
-
-VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
-LDFLAGS  = -ldflags "-X main.version=$(VERSION)"
-
-GOOS   ?= linux
-GOARCH ?= amd64
-build-linux:
-	mkdir -p bin/$(GOOS)-$(GOARCH)
-	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(LDFLAGS) -o bin/$(GOOS)-$(GOARCH)/dmcn-node ./cmd/dmcn-node
-	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(LDFLAGS) -o bin/$(GOOS)-$(GOARCH)/dmcn-bridge ./cmd/dmcn-bridge
-	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(LDFLAGS) -o bin/$(GOOS)-$(GOARCH)/dmcn-web ./cmd/dmcn-web
-
-clean:
-	rm -f *.out bin/dmcn-* bin/linux-amd64/*
-	rm -rf cmd/dmcn-web/web/dist cmd/dmcn-web/web/node_modules
