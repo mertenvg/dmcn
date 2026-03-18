@@ -20,7 +20,10 @@ import (
 	"github.com/mertenvg/dmcn/internal/node"
 )
 
-var log logr.Logger
+var (
+	version = "dev"
+	log     logr.Logger
+)
 
 func main() {
 	logr.AddWriter(os.Stderr, logr.WithFormatter(logr.FormatWithColours), logr.WithFilter(logr.Verbose))
@@ -36,6 +39,9 @@ func main() {
 
 	var err error
 	switch cmd {
+	case "version":
+		fmt.Println("dmcn-node", version)
+		return
 	case "start":
 		err = cmdStart(args)
 	case "identity":
@@ -92,6 +98,7 @@ func printUsage() {
 
 commands:
   start                          Start a DMCN node
+  version                        Print version and exit
   identity generate              Generate a new identity key pair
   identity register              Register an identity in the DHT
   identity lookup                Look up an identity by address

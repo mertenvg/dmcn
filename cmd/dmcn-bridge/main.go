@@ -18,11 +18,19 @@ import (
 	"github.com/mertenvg/dmcn/internal/bridge"
 )
 
-var log logr.Logger
+var (
+	version = "dev"
+	log     logr.Logger
+)
 
 func main() {
 	logr.AddWriter(os.Stderr, logr.WithFormatter(logr.FormatWithColours), logr.WithFilter(logr.Verbose))
 	log = logr.With(logr.M("component", "bridge-cli"))
+
+	if len(os.Args) >= 2 && os.Args[1] == "version" {
+		fmt.Println("dmcn-bridge", version)
+		return
+	}
 
 	if len(os.Args) < 2 || os.Args[1] != "start" {
 		printUsage()
@@ -41,7 +49,11 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, `usage: dmcn-bridge start [options]
+	fmt.Fprintln(os.Stderr, `usage: dmcn-bridge <command> [options]
+
+commands:
+  start    Start the SMTP-DMCN bridge
+  version  Print version and exit
 
 options:
   --node <multiaddr>         Multiaddr of running dmcn-node (required)
