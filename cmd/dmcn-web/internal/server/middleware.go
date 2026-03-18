@@ -12,20 +12,6 @@ import (
 	"github.com/mertenvg/dmcn/cmd/dmcn-web/internal/store"
 )
 
-// contextKey is a private type for context value keys in this package.
-type contextKey string
-
-// ContextKeyAddress is the context key under which the authenticated user's
-// address is stored after successful session validation.
-const ContextKeyAddress contextKey = "address"
-
-// AddressFromContext extracts the authenticated address from the request
-// context. Returns an empty string if no address is present.
-func AddressFromContext(ctx context.Context) string {
-	v, _ := ctx.Value(ContextKeyAddress).(string)
-	return v
-}
-
 // AuthMiddleware returns a middleware that validates the Bearer token from
 // the Authorization header against the session store and injects the
 // associated address into the request context.
@@ -50,7 +36,7 @@ func AuthMiddleware(sessions *store.SessionStore) func(http.HandlerFunc) http.Ha
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), ContextKeyAddress, address)
+			ctx := context.WithValue(r.Context(), store.ContextKeyAddress, address)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		}
 	}
