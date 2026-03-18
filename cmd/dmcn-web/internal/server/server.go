@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/mertenvg/logr/v2"
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/mertenvg/dmcn/cmd/dmcn-web/internal/api"
 )
@@ -27,18 +28,23 @@ type Server struct {
 	httpServer *http.Server
 	mux        *http.ServeMux
 	log        logr.Logger
+	devMode    bool
+	domain     string
 }
 
 // New creates a Server with the given configuration and logger.
 func New(cfg Config, log logr.Logger) *Server {
 	mux := http.NewServeMux()
+	handler := CSPMiddleware(cfg.Domain)(CORSMiddleware(cfg.DevMode, cfg.Domain)(mux))
 	return &Server{
 		httpServer: &http.Server{
 			Addr:    cfg.ListenAddr,
-			Handler: mux,
+			Handler: handler,
 		},
-		mux: mux,
-		log: log,
+		mux:     mux,
+		log:     log,
+		devMode: cfg.DevMode,
+		domain:  cfg.Domain,
 	}
 }
 
@@ -54,10 +60,11 @@ func (s *Server) RegisterAPI(
 	authMiddleware func(http.HandlerFunc) http.HandlerFunc,
 	frontendFS fs.FS,
 ) {
-	// Public endpoints.
-	s.mux.HandleFunc("POST /api/v1/register", auth.HandleRegister)
-	s.mux.HandleFunc("POST /api/v1/login", auth.HandleLogin)
-	s.mux.HandleFunc("POST /api/v1/login/verify", auth.HandleLoginVerify)
+	// Public endpoints with rate limiting.
+	rateLimiter := RateLimitMiddleware(20)
+	s.mux.Handle("POST /api/v1/register", rateLimiter(http.HandlerFunc(auth.HandleRegister)))
+	s.mux.Handle("POST /api/v1/login", rateLimiter(http.HandlerFunc(auth.HandleLogin)))
+	s.mux.Handle("POST /api/v1/login/verify", rateLimiter(http.HandlerFunc(auth.HandleLoginVerify)))
 
 	// Authenticated endpoints.
 	s.mux.HandleFunc("POST /api/v1/logout", authMiddleware(auth.HandleLogout))
@@ -87,6 +94,19 @@ func (s *Server) Start(certFile, keyFile string) error {
 	}
 	s.log.Info("starting HTTP server", logr.M("addr", s.httpServer.Addr))
 	return s.httpServer.ListenAndServe()
+}
+
+// StartAutocert begins listening with automatic TLS certificates from
+// Let's Encrypt via the ACME protocol.
+func (s *Server) StartAutocert(domain, cacheDir string) error {
+	m := &autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(domain),
+		Cache:      autocert.DirCache(cacheDir),
+	}
+	s.httpServer.TLSConfig = m.TLSConfig()
+	s.log.Info("starting HTTPS server with autocert", logr.M("addr", s.httpServer.Addr), logr.M("domain", domain))
+	return s.httpServer.ListenAndServeTLS("", "")
 }
 
 // Shutdown gracefully shuts down the server.

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -169,7 +170,13 @@ func main() {
 
 	// Start server in a goroutine.
 	go func() {
-		if err := srv.Start(tlsCert, tlsKey); err != nil {
+		var err error
+		if tlsCert == "" && tlsKey == "" && !devMode {
+			err = srv.StartAutocert(domain, filepath.Join(dataDir, "certs"))
+		} else {
+			err = srv.Start(tlsCert, tlsKey)
+		}
+		if err != nil {
 			log.Errorf("server error: %v", err)
 			cancel()
 		}

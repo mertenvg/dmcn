@@ -36,8 +36,8 @@ type updatePayloadRequest struct {
 
 // HandleUpdatePayload updates the encrypted payload for the authenticated user.
 func (h *ContactHandler) HandleUpdatePayload(w http.ResponseWriter, r *http.Request) {
-	address, ok := r.Context().Value("address").(string)
-	if !ok || address == "" {
+	address := store.AddressFromContext(r.Context())
+	if address == "" {
 		writeError(w, http.StatusUnauthorized, "not authenticated")
 		return
 	}

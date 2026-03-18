@@ -50,8 +50,8 @@ type sendRequest struct {
 
 // HandleSend handles sending a message.
 func (h *MessageHandler) HandleSend(w http.ResponseWriter, r *http.Request) {
-	address, ok := r.Context().Value("address").(string)
-	if !ok || address == "" {
+	address := store.AddressFromContext(r.Context())
+	if address == "" {
 		writeError(w, http.StatusUnauthorized, "not authenticated")
 		return
 	}
@@ -113,8 +113,8 @@ type envelopeEntry struct {
 
 // HandleList handles listing envelopes for the authenticated user.
 func (h *MessageHandler) HandleList(w http.ResponseWriter, r *http.Request) {
-	address, ok := r.Context().Value("address").(string)
-	if !ok || address == "" {
+	address := store.AddressFromContext(r.Context())
+	if address == "" {
 		writeError(w, http.StatusUnauthorized, "not authenticated")
 		return
 	}
@@ -144,8 +144,8 @@ type ackRequest struct {
 
 // HandleAck handles acknowledging (deleting) an envelope.
 func (h *MessageHandler) HandleAck(w http.ResponseWriter, r *http.Request) {
-	address, ok := r.Context().Value("address").(string)
-	if !ok || address == "" {
+	address := store.AddressFromContext(r.Context())
+	if address == "" {
 		writeError(w, http.StatusUnauthorized, "not authenticated")
 		return
 	}
