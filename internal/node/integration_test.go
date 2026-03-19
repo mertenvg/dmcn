@@ -410,6 +410,167 @@ func TestRelayPing(t *testing.T) {
 	}
 }
 
+// TestRelayHints tests that RelayHints returns own addrs plus org peers.
+func TestRelayHints(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	n, err := node.New(ctx, node.Config{
+		ListenAddr: "/ip4/127.0.0.1/tcp/0",
+		OrgPeers:   []string{"/ip4/10.0.0.1/tcp/7400/p2p/QmFakeOrgPeer1"},
+	})
+	if err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	defer n.Close()
+
+	hints := n.RelayHints()
+	if len(hints) == 0 {
+		t.Fatal("expected at least 1 relay hint")
+	}
+
+	// Own addresses should be first
+	ownAddrs := n.Addrs()
+	if len(ownAddrs) == 0 {
+		t.Fatal("node has no addresses")
+	}
+	if hints[0] != ownAddrs[0] {
+		t.Errorf("first hint = %q, want own addr %q", hints[0], ownAddrs[0])
+	}
+
+	// Org peer should be in hints
+	found := false
+	for _, h := range hints {
+		if h == "/ip4/10.0.0.1/tcp/7400/p2p/QmFakeOrgPeer1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("org peer not found in hints: %v", hints)
+	}
+}
+
+// TestParseRelayHint tests parsing relay hint multiaddrs.
+func TestParseRelayHint(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Create a node to get a valid multiaddr with peer ID.
+	n, err := node.New(ctx, node.Config{
+		ListenAddr: "/ip4/127.0.0.1/tcp/0",
+	})
+	if err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	defer n.Close()
+
+	addrs := n.Addrs()
+	if len(addrs) == 0 {
+		t.Fatal("no addresses")
+	}
+
+	info, err := node.ParseRelayHint(addrs[0])
+	if err != nil {
+		t.Fatalf("ParseRelayHint: %v", err)
+	}
+	if info.ID != n.PeerID() {
+		t.Errorf("peer ID = %s, want %s", info.ID, n.PeerID())
+	}
+
+	// Invalid hint
+	_, err = node.ParseRelayHint("not-a-multiaddr")
+	if err == nil {
+		t.Error("expected error for invalid multiaddr")
+	}
+}
+
+// TestOrgPeerDiscovery tests that org peer discovery merges peers from the cluster.
+func TestOrgPeerDiscovery(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Create two nodes that are org peers of each other.
+	orgNode1, err := node.New(ctx, node.Config{
+		ListenAddr: "/ip4/127.0.0.1/tcp/0",
+	})
+	if err != nil {
+		t.Fatalf("create orgNode1: %v", err)
+	}
+	defer orgNode1.Close()
+
+	orgNode2, err := node.New(ctx, node.Config{
+		ListenAddr: "/ip4/127.0.0.1/tcp/0",
+	})
+	if err != nil {
+		t.Fatalf("create orgNode2: %v", err)
+	}
+	defer orgNode2.Close()
+
+	// Connect them
+	if err := orgNode1.ConnectPeer(orgNode2.Addrs()[0]); err != nil {
+		t.Fatalf("connect org1→org2: %v", err)
+	}
+
+	// orgNode1 knows about orgNode2 via its org peers config.
+	// orgNode2's relay has both nodes as org peers, so when queried
+	// it returns the full list including orgNode1.
+	// We simulate this by manually creating a third node that connects
+	// to orgNode1 and discovers orgNode2 through org peer discovery.
+
+	// Set orgNode1's relay to report orgNode2 as an org peer.
+	// We need to create the relay with WithOrgPeers.
+	// Since we can't reconfigure after creation in this test, let's verify
+	// the basic mechanism: create a node with orgNode1 as org peer,
+	// where orgNode1 reports orgNode2 as part of its cluster.
+
+	// For this test, we verify that a node configured with orgNode1 as org peer
+	// can query orgNode1 for its full org peer list.
+	// First, stop orgNode1 and recreate with org peers config.
+	orgNode1.Close()
+	orgNode1, err = node.New(ctx, node.Config{
+		ListenAddr: "/ip4/127.0.0.1/tcp/0",
+		OrgPeers:   orgNode2.Addrs(), // orgNode1 reports orgNode2 as org peer
+	})
+	if err != nil {
+		t.Fatalf("recreate orgNode1: %v", err)
+	}
+	defer orgNode1.Close()
+
+	// Connect them again
+	if err := orgNode1.ConnectPeer(orgNode2.Addrs()[0]); err != nil {
+		t.Fatalf("reconnect org1→org2: %v", err)
+	}
+
+	// Now create a client node that only knows about orgNode1 as org peer.
+	// It should discover orgNode2 through org peer discovery.
+	clientNode, err := node.New(ctx, node.Config{
+		ListenAddr: "/ip4/127.0.0.1/tcp/0",
+		OrgPeers:   orgNode1.Addrs(),
+	})
+	if err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	defer clientNode.Close()
+
+	// Client's relay hints should include the discovered org peers.
+	hints := clientNode.RelayHints()
+
+	// Should have own addrs + orgNode1 addr + discovered orgNode2 addr
+	hasOrg2 := false
+	for _, h := range hints {
+		for _, org2Addr := range orgNode2.Addrs() {
+			if h == org2Addr {
+				hasOrg2 = true
+				break
+			}
+		}
+	}
+	if !hasOrg2 {
+		t.Errorf("expected orgNode2 in hints after discovery, got: %v", hints)
+	}
+}
+
 // TestRelayRateLimiting tests that the rate limiter rejects excessive STOREs.
 func TestRelayRateLimiting(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

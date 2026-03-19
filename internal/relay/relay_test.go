@@ -1,12 +1,27 @@
 package relay
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
+
+	libp2p "github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/mertenvg/dmcn/internal/core/identity"
 	"github.com/mertenvg/dmcn/internal/core/message"
 )
+
+func newTestHost(t *testing.T) host.Host {
+	t.Helper()
+	h, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
+	if err != nil {
+		t.Fatalf("create test host: %v", err)
+	}
+	return h
+}
 
 func TestMessageStoreBasic(t *testing.T) {
 	store := NewMessageStore()
@@ -151,6 +166,96 @@ func TestRateLimiterExpiry(t *testing.T) {
 	// Should be allowed since old timestamps are pruned
 	if !rl.Allow("alice@localhost") {
 		t.Error("should be allowed after expiry")
+	}
+}
+
+func TestOrgPeersHandlerAndClient(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	h1 := newTestHost(t)
+	defer h1.Close()
+	h2 := newTestHost(t)
+	defer h2.Close()
+
+	// Connect hosts
+	h2.Peerstore().AddAddrs(h1.ID(), h1.Addrs(), time.Hour)
+	if err := h2.Connect(ctx, peer.AddrInfo{ID: h1.ID(), Addrs: h1.Addrs()}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	lookup := func(ctx context.Context, addr string) (*identity.IdentityRecord, error) {
+		return nil, fmt.Errorf("not found")
+	}
+
+	expectedPeers := []string{"/ip4/1.2.3.4/tcp/7400/p2p/QmTest1", "/ip4/5.6.7.8/tcp/7400/p2p/QmTest2"}
+
+	r1 := New(h1, lookup, WithOrgPeers(expectedPeers))
+	r1.Start()
+	defer r1.Stop()
+
+	r2 := New(h2, lookup)
+
+	// Query org peers
+	peers, err := r2.ClientOrgPeers(ctx, h1.ID())
+	if err != nil {
+		t.Fatalf("ClientOrgPeers: %v", err)
+	}
+	if len(peers) != 2 {
+		t.Fatalf("got %d peers, want 2", len(peers))
+	}
+	if peers[0] != expectedPeers[0] || peers[1] != expectedPeers[1] {
+		t.Errorf("peers = %v, want %v", peers, expectedPeers)
+	}
+}
+
+func TestOrgPeersHandlerEmptyList(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	h1 := newTestHost(t)
+	defer h1.Close()
+	h2 := newTestHost(t)
+	defer h2.Close()
+
+	h2.Peerstore().AddAddrs(h1.ID(), h1.Addrs(), time.Hour)
+	if err := h2.Connect(ctx, peer.AddrInfo{ID: h1.ID(), Addrs: h1.Addrs()}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	lookup := func(ctx context.Context, addr string) (*identity.IdentityRecord, error) {
+		return nil, fmt.Errorf("not found")
+	}
+
+	// No org peers configured
+	r1 := New(h1, lookup)
+	r1.Start()
+	defer r1.Stop()
+
+	r2 := New(h2, lookup)
+
+	peers, err := r2.ClientOrgPeers(ctx, h1.ID())
+	if err != nil {
+		t.Fatalf("ClientOrgPeers: %v", err)
+	}
+	if len(peers) != 0 {
+		t.Fatalf("got %d peers, want 0", len(peers))
+	}
+}
+
+func TestOrgPeersAccessor(t *testing.T) {
+	h := newTestHost(t)
+	defer h.Close()
+
+	lookup := func(ctx context.Context, addr string) (*identity.IdentityRecord, error) {
+		return nil, fmt.Errorf("not found")
+	}
+
+	peers := []string{"/ip4/1.2.3.4/tcp/7400/p2p/QmTest"}
+	r := New(h, lookup, WithOrgPeers(peers))
+	got := r.OrgPeers()
+	if len(got) != 1 || got[0] != peers[0] {
+		t.Errorf("OrgPeers() = %v, want %v", got, peers)
 	}
 }
 

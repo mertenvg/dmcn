@@ -11,11 +11,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/mertenvg/logr/v2"
 
 	"github.com/mertenvg/dmcn/cmd/dmcn-web/internal/api"
@@ -36,15 +36,56 @@ var (
 	log     logr.Logger
 )
 
+// nodeRelayRouter implements api.RelayRouter by connecting to peers and
+// storing pre-signed envelopes via the node's relay client methods.
+type nodeRelayRouter struct {
+	node *node.Node
+}
+
+func (r *nodeRelayRouter) ConnectPeer(addr string) error {
+	return r.node.ConnectPeer(addr)
+}
+
+func (r *nodeRelayRouter) StorePreSignedOnPeer(ctx context.Context, hint string, senderAddr string, signature []byte, env *message.EncryptedEnvelope) ([32]byte, error) {
+	info, err := node.ParseRelayHint(hint)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return r.node.Relay().ClientStorePreSigned(ctx, info.ID, senderAddr, signature, env)
+}
+
 // relayAdapter bridges the node's relay Client* methods to the RelayProxy
 // interface expected by the WebSocket ConnManager.
 type relayAdapter struct {
-	relay  *relay.Relay
-	peerID peer.ID
+	relay          *relay.Relay
+	node           *node.Node
+	registryLookup func(ctx context.Context, address string) (*identity.IdentityRecord, error)
 }
 
 func (ra *relayAdapter) FetchChallenge(ctx context.Context, address string) ([]byte, network.Stream, error) {
-	return ra.relay.ClientFetchChallenge(ctx, ra.peerID, address)
+	// Look up the user's identity record to find relay hints.
+	if ra.registryLookup != nil {
+		rec, err := ra.registryLookup(ctx, address)
+		if err == nil && len(rec.RelayHints) > 0 {
+			// Try relay hints in order.
+			for _, hint := range rec.RelayHints {
+				info, parseErr := node.ParseRelayHint(hint)
+				if parseErr != nil {
+					continue
+				}
+				if connectErr := ra.node.ConnectPeer(hint); connectErr != nil {
+					continue
+				}
+				nonce, stream, fetchErr := ra.relay.ClientFetchChallenge(ctx, info.ID, address)
+				if fetchErr == nil {
+					return nonce, stream, nil
+				}
+			}
+			return nil, nil, fmt.Errorf("all relay hints failed for %s", address)
+		}
+	}
+	// Fallback to local node.
+	return ra.relay.ClientFetchChallenge(ctx, ra.node.PeerID(), address)
 }
 
 func (ra *relayAdapter) FetchComplete(stream network.Stream, address string, nonce, signature []byte) ([]*message.EncryptedEnvelope, [][32]byte, error) {
@@ -69,6 +110,7 @@ func main() {
 	tlsKey := os.Getenv("DMCN_WEB_TLS_KEY")
 	devMode := os.Getenv("DMCN_WEB_DEV") == "true" || os.Getenv("DMCN_WEB_DEV") == "1"
 	pollIntervalStr := envOrDefault("DMCN_WEB_POLL_INTERVAL", "10s")
+	orgPeersEnv := os.Getenv("DMCN_WEB_ORG_PEERS")
 
 	if nodeAddr == "" {
 		fmt.Fprintln(os.Stderr, "DMCN_WEB_NODE is required (multiaddr of running dmcn-node)")
@@ -97,10 +139,17 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Parse org peers from environment.
+	var orgPeers []string
+	if orgPeersEnv != "" {
+		orgPeers = strings.Split(orgPeersEnv, ",")
+	}
+
 	// Create DMCN node connecting to the specified bootstrap peer.
 	n, err := node.New(ctx, node.Config{
 		ListenAddr:     "/ip4/127.0.0.1/tcp/0",
 		BootstrapPeers: []string{nodeAddr},
+		OrgPeers:       orgPeers,
 	})
 	if err != nil {
 		log.Errorf("failed to create node: %v", err)
@@ -141,16 +190,21 @@ func main() {
 		return n.Registry().Lookup(ctx, address)
 	}
 
+	relayHints := func() []string {
+		return append([]string{nodeAddr}, orgPeers...)
+	}
+
 	// Create API handlers.
 	authHandler := api.NewAuthHandler(userStore, sessionStore, registryRegister, log)
-	msgHandler := api.NewMessageHandler(userStore, sessionStore, envelopeStore, storePreSigned, log)
-	identHandler := api.NewIdentityHandler(registryLookup, log)
+	msgHandler := api.NewMessageHandler(userStore, sessionStore, envelopeStore, storePreSigned, registryLookup, &nodeRelayRouter{node: n}, log)
+	identHandler := api.NewIdentityHandler(registryLookup, relayHints, log)
 	contactHandler := api.NewContactHandler(userStore, sessionStore, log)
 
 	// Create WebSocket connection manager.
 	relayProxy := &relayAdapter{
-		relay:  n.Relay(),
-		peerID: n.PeerID(),
+		relay:          n.Relay(),
+		node:           n,
+		registryLookup: registryLookup,
 	}
 	connManager := ws.NewConnManager(sessionStore, relayProxy, envelopeStore, pollInterval, log)
 

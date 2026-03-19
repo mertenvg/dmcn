@@ -65,6 +65,7 @@ func (s *Server) RegisterAPI(
 	s.mux.Handle("POST /api/v1/register", rateLimiter(http.HandlerFunc(auth.HandleRegister)))
 	s.mux.Handle("POST /api/v1/login", rateLimiter(http.HandlerFunc(auth.HandleLogin)))
 	s.mux.Handle("POST /api/v1/login/verify", rateLimiter(http.HandlerFunc(auth.HandleLoginVerify)))
+	s.mux.Handle("GET /api/v1/relay-hints", rateLimiter(http.HandlerFunc(ident.HandleRelayHints)))
 
 	// Authenticated endpoints.
 	s.mux.HandleFunc("POST /api/v1/logout", authMiddleware(auth.HandleLogout))

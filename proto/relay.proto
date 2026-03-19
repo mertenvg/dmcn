@@ -91,3 +91,11 @@ message ErrorResponse {
   string code = 1;
   string message = 2;
 }
+
+// OrgPeersRequest queries a node for its organizational peers.
+message OrgPeersRequest {}
+
+// OrgPeersResponse returns the list of org peer multiaddrs in the cluster.
+message OrgPeersResponse {
+  repeated string peers = 1;
+}

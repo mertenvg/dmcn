@@ -103,7 +103,21 @@ commands:
   identity register              Register an identity in the DHT
   identity lookup                Look up an identity by address
   message send                   Send a message
-  message fetch                  Fetch pending messages`)
+  message fetch                  Fetch pending messages
+
+start options:
+  --listen <multiaddr>           Listen address (default: /ip4/0.0.0.0/tcp/7400)
+  --bootstrap <addrs>            Comma-separated bootstrap peer multiaddrs
+  --org-peers <addrs>            Comma-separated org peer multiaddrs (relay fallbacks)
+  --keystore <path>              Keystore path (default: keystore.enc)
+  --passphrase <pass>            Keystore passphrase (default: dmcn-dev)
+
+identity register options:
+  --address <addr>               DMCN address to register
+  --node <multiaddr>             Node multiaddr (primary relay)
+  --org-peers <addrs>            Comma-separated org peer multiaddrs (relay fallbacks)
+  --keystore <path>              Keystore path (default: keystore.enc)
+  --passphrase <pass>            Keystore passphrase (default: dmcn-dev)`)
 }
 
 func parseFlag(args []string, name string) string {
@@ -133,6 +147,7 @@ func cmdStart(args []string) error {
 		passphrase = "dmcn-dev" // default dev passphrase
 	}
 	bootstrap := parseFlag(args, "bootstrap")
+	orgPeersStr := parseFlag(args, "org-peers")
 
 	cfg := node.Config{
 		ListenAddr:   listen,
@@ -141,6 +156,9 @@ func cmdStart(args []string) error {
 	}
 	if bootstrap != "" {
 		cfg.BootstrapPeers = strings.Split(bootstrap, ",")
+	}
+	if orgPeersStr != "" {
+		cfg.OrgPeers = strings.Split(orgPeersStr, ",")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -220,6 +238,7 @@ func cmdIdentityRegister(args []string) error {
 	if passphrase == "" {
 		passphrase = "dmcn-dev"
 	}
+	orgPeersStr := parseFlag(args, "org-peers")
 
 	ctx := context.Background()
 
@@ -229,10 +248,17 @@ func cmdIdentityRegister(args []string) error {
 		return fmt.Errorf("load key pair: %w", err)
 	}
 
+	// Build org peers list.
+	var orgPeers []string
+	if orgPeersStr != "" {
+		orgPeers = strings.Split(orgPeersStr, ",")
+	}
+
 	// Create a temporary node to connect and register
 	n, err := node.New(ctx, node.Config{
 		ListenAddr:     "/ip4/127.0.0.1/tcp/0",
 		BootstrapPeers: []string{nodeAddr},
+		OrgPeers:       orgPeers,
 	})
 	if err != nil {
 		return fmt.Errorf("create node: %w", err)
@@ -243,6 +269,10 @@ func cmdIdentityRegister(args []string) error {
 	if err != nil {
 		return fmt.Errorf("create identity record: %w", err)
 	}
+
+	// Set relay hints: primary relay (the --node) + org peers as fallbacks.
+	rec.RelayHints = append([]string{nodeAddr}, orgPeers...)
+
 	if err := rec.Sign(kp); err != nil {
 		return fmt.Errorf("sign identity: %w", err)
 	}
@@ -251,6 +281,7 @@ func cmdIdentityRegister(args []string) error {
 	}
 
 	log.Successf("identity registered: %s", address)
+	log.Infof("relay hints: %v", rec.RelayHints)
 	return nil
 }
 
@@ -357,10 +388,36 @@ func cmdMessageSend(args []string) error {
 		return fmt.Errorf("encrypt message: %w", err)
 	}
 
-	// Store on relay (connect to the node and send)
-	hash, err := n.Relay().ClientStoreWithAddress(ctx, n.PeerID(), from, senderKP, env)
-	if err != nil {
-		return fmt.Errorf("store message: %w", err)
+	// Route STORE to recipient's relay hints.
+	if len(recipientRec.RelayHints) == 0 {
+		return fmt.Errorf("recipient has no relay hints")
+	}
+
+	var hash [32]byte
+	var lastErr error
+	for _, hint := range recipientRec.RelayHints {
+		info, parseErr := node.ParseRelayHint(hint)
+		if parseErr != nil {
+			log.Warnf("invalid relay hint %s: %v", hint, parseErr)
+			lastErr = parseErr
+			continue
+		}
+		if err := n.ConnectPeer(hint); err != nil {
+			log.Warnf("failed to connect to relay hint %s: %v", hint, err)
+			lastErr = err
+			continue
+		}
+		hash, err = n.Relay().ClientStoreWithAddress(ctx, info.ID, from, senderKP, env)
+		if err != nil {
+			log.Warnf("failed to store on relay %s: %v", hint, err)
+			lastErr = err
+			continue
+		}
+		lastErr = nil
+		break
+	}
+	if lastErr != nil {
+		return fmt.Errorf("store message: all relay hints failed: %w", lastErr)
 	}
 
 	log.Successf("message sent to %s", to)
@@ -402,18 +459,51 @@ func cmdMessageFetch(args []string) error {
 	}
 	defer n.Close()
 
-	envs, hashes, err := n.Relay().ClientFetch(ctx, n.PeerID(), kp, address)
+	// Look up own identity record to get relay hints.
+	ownRec, err := n.Registry().Lookup(ctx, address)
 	if err != nil {
-		return fmt.Errorf("fetch: %w", err)
+		return fmt.Errorf("lookup own identity: %w", err)
+	}
+	if len(ownRec.RelayHints) == 0 {
+		return fmt.Errorf("identity has no relay hints; re-register with --node")
 	}
 
-	if len(envs) == 0 {
+	// Fetch from all relay hints and deduplicate.
+	var allEnvs []*message.EncryptedEnvelope
+	var allHashes [][32]byte
+	seen := make(map[[32]byte]bool)
+
+	for _, hint := range ownRec.RelayHints {
+		info, parseErr := node.ParseRelayHint(hint)
+		if parseErr != nil {
+			log.Warnf("invalid relay hint %s: %v", hint, parseErr)
+			continue
+		}
+		if connectErr := n.ConnectPeer(hint); connectErr != nil {
+			log.Warnf("failed to connect to relay %s: %v", hint, connectErr)
+			continue
+		}
+		envs, hashes, fetchErr := n.Relay().ClientFetch(ctx, info.ID, kp, address)
+		if fetchErr != nil {
+			log.Warnf("failed to fetch from relay %s: %v", hint, fetchErr)
+			continue
+		}
+		for j, env := range envs {
+			if !seen[hashes[j]] {
+				seen[hashes[j]] = true
+				allEnvs = append(allEnvs, env)
+				allHashes = append(allHashes, hashes[j])
+			}
+		}
+	}
+
+	if len(allEnvs) == 0 {
 		log.Info("no pending messages")
 		return nil
 	}
 
-	log.Infof("fetched %d message(s)", len(envs))
-	for i, env := range envs {
+	log.Infof("fetched %d message(s)", len(allEnvs))
+	for i, env := range allEnvs {
 		sm, err := message.Decrypt(env, kp.X25519Private, kp.X25519Public)
 		if err != nil {
 			log.Warnf("[%d] failed to decrypt: %v", i+1, err)
@@ -425,7 +515,7 @@ func cmdMessageFetch(args []string) error {
 		}
 		log.Infof("[%d] from: %s", i+1, sm.Plaintext.SenderAddress)
 		log.Infof("[%d] body: %s", i+1, string(sm.Plaintext.Body.Content))
-		log.Infof("[%d] hash: %x", i+1, hashes[i])
+		log.Infof("[%d] hash: %x", i+1, allHashes[i])
 	}
 
 	return nil

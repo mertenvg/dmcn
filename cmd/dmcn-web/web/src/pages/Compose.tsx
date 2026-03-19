@@ -83,6 +83,7 @@ export function Compose() {
         sender_address: address,
         sender_signature: toBase64(envSignature),
         envelope: toBase64(envBytes),
+        recipient_address: to,
       });
 
       navigate('/inbox');

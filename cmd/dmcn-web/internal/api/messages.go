@@ -11,9 +11,17 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/mertenvg/dmcn/cmd/dmcn-web/internal/store"
+	"github.com/mertenvg/dmcn/internal/core/identity"
 	"github.com/mertenvg/dmcn/internal/core/message"
 	"github.com/mertenvg/dmcn/internal/proto/dmcnpb"
 )
+
+// RelayRouter provides the ability to connect to peers and store envelopes on
+// remote relays identified by their peer ID.
+type RelayRouter interface {
+	ConnectPeer(addr string) error
+	StorePreSignedOnPeer(ctx context.Context, peerID string, senderAddr string, signature []byte, env *message.EncryptedEnvelope) ([32]byte, error)
+}
 
 // MessageHandler handles message send, list, and ack requests.
 type MessageHandler struct {
@@ -21,6 +29,8 @@ type MessageHandler struct {
 	sessions       *store.SessionStore
 	envelopes      *store.EnvelopeStore
 	storePreSigned func(ctx context.Context, senderAddr string, signature []byte, env *message.EncryptedEnvelope) ([32]byte, error)
+	registryLookup func(ctx context.Context, address string) (*identity.IdentityRecord, error)
+	relayRouter    RelayRouter
 	log            logr.Logger
 }
 
@@ -30,6 +40,8 @@ func NewMessageHandler(
 	sessions *store.SessionStore,
 	envelopes *store.EnvelopeStore,
 	storePreSigned func(ctx context.Context, senderAddr string, signature []byte, env *message.EncryptedEnvelope) ([32]byte, error),
+	registryLookup func(ctx context.Context, address string) (*identity.IdentityRecord, error),
+	relayRouter RelayRouter,
 	log logr.Logger,
 ) *MessageHandler {
 	return &MessageHandler{
@@ -37,15 +49,18 @@ func NewMessageHandler(
 		sessions:       sessions,
 		envelopes:      envelopes,
 		storePreSigned: storePreSigned,
+		registryLookup: registryLookup,
+		relayRouter:    relayRouter,
 		log:            log,
 	}
 }
 
 // sendRequest is the JSON body for HandleSend.
 type sendRequest struct {
-	SenderAddress   string `json:"sender_address"`
-	SenderSignature string `json:"sender_signature"`
-	Envelope        string `json:"envelope"`
+	SenderAddress    string `json:"sender_address"`
+	SenderSignature  string `json:"sender_signature"`
+	Envelope         string `json:"envelope"`
+	RecipientAddress string `json:"recipient_address"`
 }
 
 // HandleSend handles sending a message.
@@ -94,12 +109,44 @@ func (h *MessageHandler) HandleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the pre-signed envelope.
-	hash, err := h.storePreSigned(r.Context(), req.SenderAddress, sigBytes, env)
-	if err != nil {
-		h.log.Error("failed to store envelope", logr.M("error", err.Error()))
-		writeError(w, http.StatusInternalServerError, "failed to store message")
-		return
+	// Route STORE to recipient's relay hints if recipient_address is provided.
+	var hash [32]byte
+	if req.RecipientAddress != "" && h.registryLookup != nil && h.relayRouter != nil {
+		recipientRec, lookupErr := h.registryLookup(r.Context(), req.RecipientAddress)
+		if lookupErr != nil {
+			writeError(w, http.StatusBadRequest, "recipient not found")
+			return
+		}
+		if len(recipientRec.RelayHints) == 0 {
+			writeError(w, http.StatusBadRequest, "recipient has no relay hints")
+			return
+		}
+
+		var lastErr error
+		for _, hint := range recipientRec.RelayHints {
+			if connectErr := h.relayRouter.ConnectPeer(hint); connectErr != nil {
+				lastErr = connectErr
+				continue
+			}
+			hash, lastErr = h.relayRouter.StorePreSignedOnPeer(r.Context(), hint, req.SenderAddress, sigBytes, env)
+			if lastErr == nil {
+				break
+			}
+		}
+		if lastErr != nil {
+			h.log.Error("failed to store envelope on any relay", logr.M("error", lastErr.Error()))
+			writeError(w, http.StatusBadGateway, "failed to deliver message to recipient relays")
+			return
+		}
+	} else {
+		// Fallback to default relay (legacy behavior).
+		var storeErr error
+		hash, storeErr = h.storePreSigned(r.Context(), req.SenderAddress, sigBytes, env)
+		if storeErr != nil {
+			h.log.Error("failed to store envelope", logr.M("error", storeErr.Error()))
+			writeError(w, http.StatusInternalServerError, "failed to store message")
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"envelope_hash": hex.EncodeToString(hash[:])})

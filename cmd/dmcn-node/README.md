@@ -24,6 +24,16 @@ dmcn-node start \
     --bootstrap /ip4/192.168.1.10/tcp/7400/p2p/12D3KooW...
 ```
 
+### 2b. Run with organizational peers
+
+Org peers are trusted peers in the same cluster that act as relay fallbacks. They also serve as bootstrap peers if no `--bootstrap` is provided. On startup the node queries each org peer for the full cluster list and connects to any newly discovered members.
+
+```bash
+dmcn-node start \
+    --listen /ip4/0.0.0.0/tcp/7400 \
+    --org-peers /ip4/10.0.0.1/tcp/7400/p2p/12D3KooW...,/ip4/10.0.0.2/tcp/7400/p2p/12D3KooW...
+```
+
 ### 3. Generate an identity
 
 Create a new Ed25519 + X25519 key pair and store it in an encrypted keystore file.
@@ -37,12 +47,13 @@ dmcn-node identity generate \
 
 ### 4. Register an identity on the DHT
 
-Publish an identity record to the distributed hash table so other users can look up your public keys by address.
+Publish an identity record to the distributed hash table so other users can look up your public keys by address. The `--node` value becomes the primary relay hint; optional `--org-peers` are added as fallback relay hints. Relay hints are included in the signed identity record so senders know where to deliver messages.
 
 ```bash
 dmcn-node identity register \
     --address alice@example.com \
     --node /ip4/127.0.0.1/tcp/7400/p2p/12D3KooW... \
+    --org-peers /ip4/10.0.0.1/tcp/7400/p2p/12D3KooW... \
     --keystore keys.json \
     --passphrase "my secret passphrase"
 ```
@@ -59,7 +70,7 @@ dmcn-node identity lookup \
 
 ### 6. Send a message
 
-Compose, sign, encrypt, and deliver a message to a registered recipient via the relay.
+Compose, sign, encrypt, and deliver a message to a registered recipient. The sender looks up the recipient's identity record, reads the relay hints, and routes the STORE to the recipient's primary relay (falling back to subsequent hints on failure).
 
 ```bash
 dmcn-node message send \
@@ -71,9 +82,11 @@ dmcn-node message send \
     --passphrase "my secret passphrase"
 ```
 
+The `--node` flag is used to join the DHT for the recipient lookup. The actual message delivery goes to the relay(s) listed in the recipient's identity record.
+
 ### 7. Fetch pending messages
 
-Retrieve, decrypt, and display messages waiting on the relay for your address. Uses challenge-response authentication to prove key ownership.
+Retrieve, decrypt, and display messages waiting on your relays. The node looks up your own identity record to find your relay hints, then fetches from each relay and deduplicates the results. Uses challenge-response authentication to prove key ownership.
 
 ```bash
 dmcn-node message fetch \
@@ -82,6 +95,8 @@ dmcn-node message fetch \
     --keystore keys.json \
     --passphrase "my secret passphrase"
 ```
+
+The `--node` flag is used to join the DHT for the identity lookup. Messages are fetched from the relay(s) listed in your identity record.
 
 ## Full End-to-End Example
 
@@ -116,6 +131,7 @@ dmcn-node message fetch \
 | `--keystore` | `keystore.enc` | Path to encrypted keystore file |
 | `--passphrase` | `dmcn-dev` | Keystore encryption passphrase |
 | `--bootstrap` | *(none)* | Comma-separated bootstrap peer multiaddrs |
+| `--org-peers` | *(none)* | Comma-separated org peer multiaddrs (relay fallbacks; also used as bootstrap if `--bootstrap` is empty) |
 
 ### `identity generate` command
 
@@ -130,7 +146,8 @@ dmcn-node message fetch \
 | Flag | Default | Description |
 |---|---|---|
 | `--address` | *(required)* | DMCN address to register |
-| `--node` | *(required)* | Multiaddr of a running DMCN node |
+| `--node` | *(required)* | Multiaddr of a running DMCN node (becomes the primary relay hint) |
+| `--org-peers` | *(none)* | Comma-separated org peer multiaddrs (added as fallback relay hints) |
 | `--keystore` | `keystore.enc` | Path to encrypted keystore file |
 | `--passphrase` | `dmcn-dev` | Keystore encryption passphrase |
 
