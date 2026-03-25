@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/hooks/useAuth';
 import { useKeys } from '../lib/hooks/useKeys';
-import { register } from '../lib/api/client';
+import { register, getRelayHints } from '../lib/api/client';
 import { generateIdentityKeyPair, toBase64 } from '../lib/crypto/keys';
 import { encryptKeys } from '../lib/crypto/keystore';
 import { encodeIdentitySignableBytes, encodeIdentityRecord } from '../lib/crypto/protobuf';
@@ -42,6 +42,9 @@ export function Register() {
       });
       const encryptedPayload = await encryptKeys(new TextEncoder().encode(keyData), passphrase);
 
+      // Fetch relay hints from backend
+      const { relay_hints } = await getRelayHints();
+
       // Create and sign identity record
       const now = keys.createdAt;
       const signableBytes = await encodeIdentitySignableBytes({
@@ -51,7 +54,7 @@ export function Register() {
         x25519PublicKey: keys.x25519Public,
         createdAt: now,
         expiresAt: 0,
-        relayHints: [],
+        relayHints: relay_hints,
         verificationTier: 0,
         bridgeCapability: false,
       });
@@ -67,7 +70,7 @@ export function Register() {
         x25519PublicKey: keys.x25519Public,
         createdAt: now,
         expiresAt: 0,
-        relayHints: [],
+        relayHints: relay_hints,
         verificationTier: 0,
         bridgeCapability: false,
         selfSignature,

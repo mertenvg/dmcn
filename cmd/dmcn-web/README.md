@@ -91,6 +91,7 @@ All configuration is via environment variables:
 | `DMCN_WEB_DATA_DIR` | `data` | Directory for user files and envelopes |
 | `DMCN_WEB_TLS_CERT` | *(empty)* | Path to TLS certificate (overrides autocert) |
 | `DMCN_WEB_TLS_KEY` | *(empty)* | Path to TLS private key |
+| `DMCN_WEB_ORG_PEERS` | *(empty)* | Comma-separated org peer multiaddrs (relay fallbacks) |
 | `DMCN_WEB_DEV` | `false` | Development mode (uses `certs/localhost.*`, relaxed CORS) |
 | `DMCN_WEB_POLL_INTERVAL` | `10s` | Relay poll interval for connected users |
 
@@ -176,6 +177,7 @@ WantedBy=multi-user.target
 | `POST` | `/api/v1/register` | Register new identity |
 | `POST` | `/api/v1/login` | Start login (returns challenge) |
 | `POST` | `/api/v1/login/verify` | Complete login (verify signed challenge) |
+| `GET` | `/api/v1/relay-hints` | Get relay hints for this node (primary + org peers) |
 
 ### Authenticated (Bearer token)
 

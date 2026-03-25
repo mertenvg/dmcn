@@ -23,6 +23,7 @@ import (
 type Config struct {
 	ListenAddr     string   // multiaddr string, e.g. "/ip4/0.0.0.0/tcp/7400"
 	BootstrapPeers []string // multiaddr strings of bootstrap peers
+	OrgPeers       []string // multiaddr strings of organizational peers (relay fallbacks)
 	KeystorePath   string   // path to encrypted keystore file
 	Passphrase     string   // passphrase for keystore encryption
 }
@@ -33,6 +34,7 @@ type Node struct {
 	registry *registry.Registry
 	relay    *relay.Relay
 	keystore *keystore.Keystore
+	orgPeers []string
 	log      logr.Logger
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -74,8 +76,14 @@ func New(ctx context.Context, cfg Config, log ...logr.Logger) (*Node, error) {
 	}
 
 	// Create relay with registry lookup
-	rl := relay.New(h, reg.Lookup)
+	rl := relay.New(h, reg.Lookup, relay.WithOrgPeers(cfg.OrgPeers))
 	rl.Start()
+
+	// If org peers provided but no bootstrap peers, use org peers for DHT bootstrap.
+	bootstrapPeers := cfg.BootstrapPeers
+	if len(bootstrapPeers) == 0 && len(cfg.OrgPeers) > 0 {
+		bootstrapPeers = cfg.OrgPeers
+	}
 
 	// Create keystore
 	var ks *keystore.Keystore
@@ -88,17 +96,23 @@ func New(ctx context.Context, cfg Config, log ...logr.Logger) (*Node, error) {
 		registry: reg,
 		relay:    rl,
 		keystore: ks,
+		orgPeers: cfg.OrgPeers,
 		log:      l,
 		ctx:      ctx,
 		cancel:   cancel,
 	}
 
 	// Connect to bootstrap peers
-	for _, peerAddr := range cfg.BootstrapPeers {
+	for _, peerAddr := range bootstrapPeers {
 		if err := n.ConnectPeer(peerAddr); err != nil {
 			// Non-fatal: log but continue
 			l.Warnf("failed to connect to bootstrap peer %s: %v", peerAddr, err)
 		}
+	}
+
+	// Discover additional org peers from connected org peers.
+	if len(cfg.OrgPeers) > 0 {
+		n.discoverOrgPeers(ctx, cfg.OrgPeers)
 	}
 
 	return n, nil
@@ -165,6 +179,58 @@ func (n *Node) ConnectPeer(addr string) error {
 	}
 
 	return nil
+}
+
+// RelayHints returns the node's own addresses plus org peers, suitable for
+// populating IdentityRecord.RelayHints.
+func (n *Node) RelayHints() []string {
+	return append(n.Addrs(), n.orgPeers...)
+}
+
+// ParseRelayHint parses a relay hint multiaddr string into peer.AddrInfo.
+func ParseRelayHint(hint string) (*peer.AddrInfo, error) {
+	ma, err := multiaddr.NewMultiaddr(hint)
+	if err != nil {
+		return nil, fmt.Errorf("invalid relay hint: %w", err)
+	}
+	info, err := peer.AddrInfoFromP2pAddr(ma)
+	if err != nil {
+		return nil, fmt.Errorf("parse relay hint peer info: %w", err)
+	}
+	return info, nil
+}
+
+// discoverOrgPeers queries connected org peers for the full cluster list
+// and connects to any newly discovered peers.
+func (n *Node) discoverOrgPeers(ctx context.Context, initialPeers []string) {
+	known := make(map[string]bool)
+	for _, p := range initialPeers {
+		known[p] = true
+	}
+
+	for _, peerAddr := range initialPeers {
+		info, err := ParseRelayHint(peerAddr)
+		if err != nil {
+			continue
+		}
+
+		discovered, err := n.relay.ClientOrgPeers(ctx, info.ID)
+		if err != nil {
+			n.log.Warnf("failed to discover org peers from %s: %v", peerAddr, err)
+			continue
+		}
+
+		for _, dp := range discovered {
+			if known[dp] {
+				continue
+			}
+			known[dp] = true
+			n.orgPeers = append(n.orgPeers, dp)
+			if err := n.ConnectPeer(dp); err != nil {
+				n.log.Warnf("failed to connect to discovered org peer %s: %v", dp, err)
+			}
+		}
+	}
 }
 
 // Close shuts down the node, stopping the relay and registry.

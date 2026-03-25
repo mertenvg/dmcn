@@ -92,11 +92,21 @@ export function lookupIdentity(address: string): Promise<IdentityLookupResponse>
   return request('GET', `/api/v1/identity/lookup?address=${encodeURIComponent(address)}`);
 }
 
+// Relay hints API
+export interface RelayHintsResponse {
+  relay_hints: string[];
+}
+
+export function getRelayHints(): Promise<RelayHintsResponse> {
+  return request('GET', '/api/v1/relay-hints');
+}
+
 // Messages API
 export interface SendMessageRequest {
   sender_address: string;
   sender_signature: string;
   envelope: string;
+  recipient_address: string;
 }
 
 export interface SendMessageResponse {

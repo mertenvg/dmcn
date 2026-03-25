@@ -133,10 +133,13 @@ make lint           # buf lint + go vet
 **Generate and register an identity**
 
 ```bash
-./bin/dmcn-node identity generate --keystore keys.json --passphrase "secret"
-./bin/dmcn-node identity register --node /ip4/127.0.0.1/tcp/9000 \
+./bin/dmcn-node identity generate --address alice@localhost \
+    --keystore keys.json --passphrase "secret"
+./bin/dmcn-node identity register --node /ip4/127.0.0.1/tcp/9000/p2p/<PEER_ID> \
     --address alice@localhost --keystore keys.json --passphrase "secret"
 ```
+
+The `--node` multiaddr becomes the primary relay hint in the identity record. Optionally add `--org-peers` for fallback relays.
 
 **Start a bridge node**
 
@@ -156,7 +159,7 @@ internal/
   core/identity/      Self-certifying identity records (local@domain)
   core/message/       Three-layer message model: plaintext → signed → encrypted envelope
   registry/           DHT-based identity registry (libp2p Kademlia)
-  relay/              Message relay over libp2p streams (/dmcn/relay/1.0.0)
+  relay/              Message relay over libp2p streams (/dmcn/relay/1.0.0, /dmcn/org/1.0.0)
   keystore/           Encrypted on-disk key storage
   node/               Combined development node (DHT + relay)
   bridge/             SMTP-DMCN bridge with pluggable auth and delivery interfaces

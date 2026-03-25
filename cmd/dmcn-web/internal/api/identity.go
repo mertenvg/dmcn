@@ -12,19 +12,31 @@ import (
 
 // IdentityHandler handles DHT identity lookup requests.
 type IdentityHandler struct {
-	lookup func(ctx context.Context, address string) (*identity.IdentityRecord, error)
-	log    logr.Logger
+	lookup     func(ctx context.Context, address string) (*identity.IdentityRecord, error)
+	relayHints func() []string
+	log        logr.Logger
 }
 
 // NewIdentityHandler creates a new IdentityHandler.
 func NewIdentityHandler(
 	lookup func(ctx context.Context, address string) (*identity.IdentityRecord, error),
+	relayHints func() []string,
 	log logr.Logger,
 ) *IdentityHandler {
 	return &IdentityHandler{
-		lookup: lookup,
-		log:    log,
+		lookup:     lookup,
+		relayHints: relayHints,
+		log:        log,
 	}
+}
+
+// HandleRelayHints returns the relay hints for this web backend's node.
+func (h *IdentityHandler) HandleRelayHints(w http.ResponseWriter, r *http.Request) {
+	hints := h.relayHints()
+	if hints == nil {
+		hints = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"relay_hints": hints})
 }
 
 // HandleLookup handles an identity lookup by address query parameter.

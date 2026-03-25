@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,8 @@ import (
 const (
 	// ProtocolID is the libp2p protocol identifier for the relay service.
 	ProtocolID = protocol.ID("/dmcn/relay/1.0.0")
+	// OrgPeersProtocolID is the libp2p protocol identifier for org peer discovery.
+	OrgPeersProtocolID = protocol.ID("/dmcn/org/1.0.0")
 	// maxMessageSize is the maximum size of a single protocol message (4 MB).
 	maxMessageSize = 4 * 1024 * 1024
 	// defaultRateLimit is the PoC rate limit (100 STORE ops/hr/identity).
@@ -54,6 +57,7 @@ type Relay struct {
 	log       logr.Logger
 	startTime time.Time
 	version   string
+	orgPeers  []string
 
 	mu      sync.Mutex
 	started bool
@@ -70,18 +74,20 @@ func New(h host.Host, lookup LookupFunc, opts ...Option) *Relay {
 	}
 
 	return &Relay{
-		host:    h,
-		lookup:  lookup,
-		store:   NewMessageStore(),
-		limiter: NewRateLimiter(cfg.rateLimit),
-		log:     logr.With(logr.M("component", "relay")),
-		version: cfg.version,
+		host:     h,
+		lookup:   lookup,
+		store:    NewMessageStore(),
+		limiter:  NewRateLimiter(cfg.rateLimit),
+		log:      logr.With(logr.M("component", "relay")),
+		version:  cfg.version,
+		orgPeers: cfg.orgPeers,
 	}
 }
 
 type relayOptions struct {
 	rateLimit int
 	version   string
+	orgPeers  []string
 }
 
 // Option configures a Relay.
@@ -91,6 +97,13 @@ type Option func(*relayOptions)
 func WithRateLimit(maxPerHour int) Option {
 	return func(o *relayOptions) {
 		o.rateLimit = maxPerHour
+	}
+}
+
+// WithOrgPeers sets the organizational peers for this relay node.
+func WithOrgPeers(peers []string) Option {
+	return func(o *relayOptions) {
+		o.orgPeers = peers
 	}
 }
 
@@ -104,6 +117,7 @@ func (r *Relay) Start() {
 	r.started = true
 	r.startTime = time.Now()
 	r.host.SetStreamHandler(ProtocolID, r.handleStream)
+	r.host.SetStreamHandler(OrgPeersProtocolID, r.handleOrgPeers)
 	r.log.Info("relay started")
 }
 
@@ -116,6 +130,7 @@ func (r *Relay) Stop() {
 	}
 	r.started = false
 	r.host.RemoveStreamHandler(ProtocolID)
+	r.host.RemoveStreamHandler(OrgPeersProtocolID)
 	r.log.Info("relay stopped")
 }
 
@@ -723,6 +738,70 @@ func (r *Relay) ClientPing(ctx context.Context, peerID peer.ID) (*dmcnpb.PingRes
 	}
 
 	return resp.GetPing(), nil
+}
+
+// --- Org peers protocol ---
+
+// orgPeersResponse is the JSON response for the org peers protocol.
+type orgPeersResponse struct {
+	Peers []string `json:"peers"`
+}
+
+// handleOrgPeers responds to org peer discovery requests with the configured
+// org peers list.
+func (r *Relay) handleOrgPeers(s network.Stream) {
+	defer s.Close()
+
+	resp := orgPeersResponse{Peers: r.orgPeers}
+	if resp.Peers == nil {
+		resp.Peers = []string{}
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return
+	}
+
+	var lenBuf [4]byte
+	binary.BigEndian.PutUint32(lenBuf[:], uint32(len(data)))
+	s.Write(lenBuf[:])
+	s.Write(data)
+}
+
+// ClientOrgPeers queries a remote peer for its organizational peers.
+func (r *Relay) ClientOrgPeers(ctx context.Context, peerID peer.ID) ([]string, error) {
+	s, err := r.host.NewStream(ctx, peerID, OrgPeersProtocolID)
+	if err != nil {
+		return nil, fmt.Errorf("relay: org-peers: open stream: %w", err)
+	}
+	defer s.Close()
+
+	// Read length-prefixed JSON response.
+	var lenBuf [4]byte
+	if _, err := io.ReadFull(s, lenBuf[:]); err != nil {
+		return nil, fmt.Errorf("relay: org-peers: read length: %w", err)
+	}
+	length := binary.BigEndian.Uint32(lenBuf[:])
+	if length > maxMessageSize {
+		return nil, errors.New("relay: org-peers: response too large")
+	}
+
+	data := make([]byte, length)
+	if _, err := io.ReadFull(s, data); err != nil {
+		return nil, fmt.Errorf("relay: org-peers: read data: %w", err)
+	}
+
+	var resp orgPeersResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("relay: org-peers: unmarshal: %w", err)
+	}
+
+	return resp.Peers, nil
+}
+
+// OrgPeers returns the configured organizational peers.
+func (r *Relay) OrgPeers() []string {
+	return r.orgPeers
 }
 
 // --- Wire protocol helpers ---
